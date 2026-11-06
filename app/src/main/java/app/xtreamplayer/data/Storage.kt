@@ -70,6 +70,49 @@ class Storage(context: Context) {
         prefs.edit().putString("favs_$accountId", arr.toString()).apply()
     }
 
+    fun loadRecents(accountId: String): List<Recent> = try {
+        val arr = JSONArray(prefs.getString("recent_$accountId", "[]"))
+        List(arr.length()) { i ->
+            val o = arr.getJSONObject(i)
+            Recent(
+                key = o.getString("key"),
+                kind = o.getString("kind"),
+                contentId = o.getString("contentId"),
+                title = o.getString("title"),
+                subtitle = o.optString("subtitle", ""),
+                image = if (o.isNull("image")) null else o.getString("image"),
+                ext = o.optString("ext", ""),
+                seriesId = o.optInt("seriesId", 0),
+                positionMs = o.optLong("positionMs", 0L),
+                durationMs = o.optLong("durationMs", 0L),
+                updatedAt = o.optLong("updatedAt", 0L),
+            )
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    fun saveRecents(accountId: String, list: List<Recent>) {
+        val arr = JSONArray()
+        list.forEach { r ->
+            arr.put(
+                JSONObject()
+                    .put("key", r.key)
+                    .put("kind", r.kind)
+                    .put("contentId", r.contentId)
+                    .put("title", r.title)
+                    .put("subtitle", r.subtitle)
+                    .put("image", r.image ?: JSONObject.NULL)
+                    .put("ext", r.ext)
+                    .put("seriesId", r.seriesId)
+                    .put("positionMs", r.positionMs)
+                    .put("durationMs", r.durationMs)
+                    .put("updatedAt", r.updatedAt)
+            )
+        }
+        prefs.edit().putString("recent_$accountId", arr.toString()).apply()
+    }
+
     fun getPosition(key: String): Long = prefs.getLong("pos_$key", 0L)
 
     fun setPosition(key: String, ms: Long) {

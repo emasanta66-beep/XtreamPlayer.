@@ -57,6 +57,8 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -83,6 +85,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var attempt by remember { mutableIntStateOf(0) }
     var controlsVisible by remember { mutableStateOf(true) }
     var landscape by remember { mutableStateOf(true) }
+    var showTracks by remember { mutableStateOf(false) }
 
     val exoPlayer = remember {
         val http = DefaultHttpDataSource.Factory()
@@ -95,6 +98,11 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             .build()
             .apply { playWhenReady = true }
     }
+
+    // Pistas de audio y subtítulos disponibles (se actualizan cuando el reproductor las descubre).
+    var tracks by remember { mutableStateOf(exoPlayer.currentTracks) }
+    val audioOptions = remember(tracks) { tracks.options(C.TRACK_TYPE_AUDIO) }
+    val textOptions = remember(tracks) { tracks.options(C.TRACK_TYPE_TEXT) }
 
     // Carga (o recarga) el contenido cuando cambia la URL o se pulsa "Reintentar".
     val currentUrl = if (usingAlt) item.altUrl ?: item.url else item.url
@@ -109,6 +117,10 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     // Errores: primero se prueba el formato alternativo (en vivo), luego se muestra el error.
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
+            override fun onTracksChanged(newTracks: Tracks) {
+                tracks = newTracks
+            }
+
             override fun onPlayerError(e: PlaybackException) {
                 if (e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                     exoPlayer.seekToDefaultPosition()
@@ -125,11 +137,9 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         exoPlayer.addListener(listener)
         onDispose {
             exoPlayer.removeListener(listener)
-            val key = item.resumeKey
             val duration = exoPlayer.duration
-            if (key != null && duration != C.TIME_UNSET && duration > 0) {
-                val pos = exoPlayer.currentPosition
-                vm.savePosition(key, if (pos > duration - 15_000) 0L else pos)
+            if (item.resumeKey != null && duration != C.TIME_UNSET && duration > 0) {
+                vm.saveProgress(item, exoPlayer.currentPosition, duration)
             }
             exoPlayer.release()
         }
@@ -248,10 +258,39 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                         )
                     }
                 }
+                if (audioOptions.size > 1 || textOptions.isNotEmpty()) {
+                    TextButton(onClick = { showTracks = true }) {
+                        Text("Audio y subs", color = Color.White)
+                    }
+                }
                 TextButton(onClick = { landscape = !landscape }) {
                     Text(if (landscape) "Vertical" else "Horizontal", color = Color.White)
                 }
             }
+        }
+
+        if (showTracks) {
+            TrackDialog(
+                audio = if (audioOptions.size > 1) audioOptions else emptyList(),
+                text = textOptions,
+                onAudio = { o ->
+                    exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                        .buildUpon()
+                        .setOverrideForType(TrackSelectionOverride(o.group.mediaTrackGroup, o.index))
+                        .build()
+                },
+                onText = { o ->
+                    val builder = exoPlayer.trackSelectionParameters.buildUpon()
+                    if (o == null) {
+                        builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    } else {
+                        builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                            .setOverrideForType(TrackSelectionOverride(o.group.mediaTrackGroup, o.index))
+                    }
+                    exoPlayer.trackSelectionParameters = builder.build()
+                },
+                onDismiss = { showTracks = false },
+            )
         }
 
         error?.let { message ->

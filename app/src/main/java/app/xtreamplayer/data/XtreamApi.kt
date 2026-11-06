@@ -151,6 +151,7 @@ class XtreamApi(private val acc: Account) {
             val id = e.str("id") ?: return
             val season = e.optInt("season", 1)
             val number = e.optInt("episode_num", 0)
+            val info = e.optJSONObject("info")
             seasons.getOrPut(season) { mutableListOf() }.add(
                 Episode(
                     id = id,
@@ -158,7 +159,9 @@ class XtreamApi(private val acc: Account) {
                     season = season,
                     number = number,
                     ext = e.str("container_extension") ?: "mp4",
-                    plot = e.optJSONObject("info")?.str("plot"),
+                    plot = info?.str("plot"),
+                    image = info?.str("movie_image") ?: info?.str("cover_big"),
+                    duration = info?.str("duration"),
                 )
             )
         }

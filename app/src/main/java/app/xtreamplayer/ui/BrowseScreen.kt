@@ -45,8 +45,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -74,23 +74,25 @@ import app.xtreamplayer.Section
 import app.xtreamplayer.data.Category
 import app.xtreamplayer.data.Channel
 import app.xtreamplayer.data.Fav
+import app.xtreamplayer.data.Recent
 import app.xtreamplayer.data.Series
 import coil.compose.AsyncImage
 
 @Composable
 fun BrowseScreen(vm: AppViewModel) {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    // Pestaña inicial: "Continuar" si hay algo empezado; si no, "En vivo".
+    var tab by rememberSaveable { mutableIntStateOf(if (vm.recents.isEmpty()) 1 else 0) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    val titles = listOf("En vivo", "Películas", "Series", "Favoritos")
+    val titles = listOf("Continuar", "En vivo", "Películas", "Series", "Favoritos")
 
     LaunchedEffect(tab) {
         when (tab) {
-            0 -> vm.ensureLive()
-            1 -> vm.ensureMovies()
-            2 -> vm.ensureSeries()
+            1 -> vm.ensureLive()
+            2 -> vm.ensureMovies()
+            3 -> vm.ensureSeries()
         }
     }
     LaunchedEffect(searching) {
@@ -155,9 +157,9 @@ fun BrowseScreen(vm: AppViewModel) {
                         }
                         IconButton(onClick = {
                             when (tab) {
-                                0 -> vm.ensureLive(true)
-                                1 -> vm.ensureMovies(true)
-                                2 -> vm.ensureSeries(true)
+                                1 -> vm.ensureLive(true)
+                                2 -> vm.ensureMovies(true)
+                                3 -> vm.ensureSeries(true)
                             }
                         }) { Icon(Icons.Default.Refresh, contentDescription = "Actualizar") }
                         Box {
@@ -183,7 +185,7 @@ fun BrowseScreen(vm: AppViewModel) {
                         }
                     },
                 )
-                TabRow(selectedTabIndex = tab) {
+                ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
                     titles.forEachIndexed { i, t ->
                         Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t, maxLines = 1) })
                     }
@@ -193,15 +195,70 @@ fun BrowseScreen(vm: AppViewModel) {
     ) { pad ->
         val modifier = Modifier.padding(pad).fillMaxSize()
         when (tab) {
-            0 -> LiveTab(vm, query, modifier)
-            1 -> MoviesTab(vm, query, modifier)
-            2 -> SeriesTab(vm, query, modifier)
+            0 -> ContinueTab(vm, query, modifier)
+            1 -> LiveTab(vm, query, modifier)
+            2 -> MoviesTab(vm, query, modifier)
+            3 -> SeriesTab(vm, query, modifier)
             else -> FavTab(vm, query, modifier)
         }
     }
 }
 
 // ---------------------------------------------------------------- Pestañas
+
+@Composable
+private fun ContinueTab(vm: AppViewModel, query: String, modifier: Modifier) {
+    val q = query.trim()
+    val list = vm.recents.filter { q.isEmpty() || it.title.contains(q, ignoreCase = true) }
+    if (list.isEmpty()) {
+        Box(modifier) {
+            EmptyHint(
+                if (vm.recents.isEmpty()) "Lo que empieces a ver aparecerá aquí para que lo continúes donde lo dejaste."
+                else "Sin resultados",
+            )
+        }
+    } else {
+        LazyColumn(modifier, contentPadding = PaddingValues(vertical = 8.dp)) {
+            items(list, key = { it.key }) { r ->
+                ContinueRow(r, onClick = { vm.playRecent(r) }, onRemove = { vm.removeRecent(r) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContinueRow(r: Recent, onClick: () -> Unit, onRemove: () -> Unit) {
+    val progress = if (r.durationMs > 0) r.positionMs.toFloat() / r.durationMs else null
+    val remainingMin = ((r.durationMs - r.positionMs) / 60_000L).coerceAtLeast(1L)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        VideoThumb(image = r.image, progress = progress, modifier = Modifier.width(150.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(r.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                listOf(
+                    r.subtitle.ifEmpty { "Película" },
+                    "quedan $remainingMin min",
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        IconButton(onClick = onRemove) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "Quitar de Continuar viendo",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
 
 @Composable
 private fun LiveTab(vm: AppViewModel, query: String, modifier: Modifier) {
@@ -252,7 +309,7 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
                         title = m.name,
                         image = m.icon,
                         fav = vm.isFav("movie", m.id),
-                        onClick = { vm.playMovie(m.id, m.name, m.ext) },
+                        onClick = { vm.playMovie(m.id, m.name, m.ext, m.icon) },
                         onFav = { vm.toggleFav(Fav("movie", m.id, m.name, m.icon, m.ext)) },
                     )
                 }
@@ -319,7 +376,7 @@ private fun FavTab(vm: AppViewModel, query: String, modifier: Modifier) {
                     onClick = {
                         when (f.type) {
                             "live" -> vm.playChannel(Channel(f.id, f.name, f.icon, ""))
-                            "movie" -> vm.playMovie(f.id, f.name, f.ext)
+                            "movie" -> vm.playMovie(f.id, f.name, f.ext, f.icon)
                             else -> vm.openSeries(Series(f.id, f.name, f.icon, "", null, null))
                         }
                     },
