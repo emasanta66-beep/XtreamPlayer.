@@ -75,6 +75,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import app.xtreamplayer.AppViewModel
 import app.xtreamplayer.data.EpgItem
+import app.xtreamplayer.data.Episode
 import app.xtreamplayer.data.Http
 import app.xtreamplayer.data.PlayItem
 import kotlinx.coroutines.delay
@@ -121,6 +122,10 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var tracks by remember { mutableStateOf(exoPlayer.currentTracks) }
     val audioOptions = remember(tracks) { tracks.options(C.TRACK_TYPE_AUDIO) }
     val textOptions = remember(tracks) { tracks.options(C.TRACK_TYPE_TEXT) }
+
+    // Capítulo siguiente (solo en series; null si es el último o si no es un episodio).
+    var nextEpisode by remember { mutableStateOf<Episode?>(null) }
+    LaunchedEffect(item.resumeKey) { nextEpisode = vm.nextEpisode(item) }
 
     // Velocidad de reproducción (botón "Velocidad ...").
     LaunchedEffect(speedIndex) { exoPlayer.setPlaybackSpeed(speeds[speedIndex]) }
@@ -337,6 +342,11 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                nextEpisode?.let { next ->
+                    TextButton(onClick = { vm.playNextEpisode(item, next) }) {
+                        Text("Siguiente (T${next.season}E${next.number})", color = Color.White)
+                    }
+                }
                 if (audioOptions.size > 1 || textOptions.isNotEmpty()) {
                     TextButton(onClick = { showTracks = true }) {
                         Text("Audio y subs", color = Color.White)
