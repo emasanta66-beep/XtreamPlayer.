@@ -24,12 +24,19 @@ jobs:
           gradle-version: 8.14.3
 
       # Si el repositorio tiene el secret KEYSTORE_BASE64, firma con esa clave
-      # (así el APK se instala encima de la versión anterior). Si no, usa debug.
+      # (así el APK se instala encima de la versión anterior). Si no es válido, usa debug.
       - name: Preparar firma
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/xtream.jks"
-            echo "KEYSTORE_PATH=$RUNNER_TEMP/xtream.jks" >> "$GITHUB_ENV"
+            echo "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 -d > "$RUNNER_TEMP/xtream.jks" 2>/dev/null || true
+            if [ -s "$RUNNER_TEMP/xtream.jks" ] && keytool -list -keystore "$RUNNER_TEMP/xtream.jks" -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1; then
+              echo "KEYSTORE_PATH=$RUNNER_TEMP/xtream.jks" >> "$GITHUB_ENV"
+              echo "Se usará la firma de release."
+            else
+              echo "::warning::KEYSTORE_BASE64 no es un keystore válido; se compilará en debug."
+            fi
+          else
+            echo "No hay KEYSTORE_BASE64; se compilará en debug."
           fi
 
       - name: Compilar APK
