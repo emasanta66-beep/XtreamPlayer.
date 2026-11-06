@@ -343,7 +343,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var videoMode by mutableStateOf(storage.videoMode)
         private set
 
-    fun setVideoMode(mode: Int) {
+    // Se llama distinto a "setVideoMode" para no chocar con el setter privado de la propiedad (misma firma en JVM).
+    fun chooseVideoMode(mode: Int) {
         videoMode = mode
         storage.videoMode = mode
     }
