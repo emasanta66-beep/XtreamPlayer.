@@ -8,3 +8,8 @@
 /captures/
 .externalNativeBuild/
 .cxx/
+# Nunca subir la firma ni contraseñas al repositorio
+*.jks
+*.keystore
+firma-xtream/
+password.txt

@@ -5,12 +5,17 @@ on:
     branches: [main, master]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
       KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
       KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      BUILD_NUMBER: ${{ github.run_number }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,10 +47,10 @@ jobs:
       - name: Compilar APK
         run: |
           if [ -n "$KEYSTORE_PATH" ]; then
-            gradle assembleRelease --no-daemon
+            gradle assembleRelease --no-daemon -PbuildNumber="$BUILD_NUMBER"
             cp app/build/outputs/apk/release/app-release.apk XtreamPlayer.apk
           else
-            gradle assembleDebug --no-daemon
+            gradle assembleDebug --no-daemon -PbuildNumber="$BUILD_NUMBER"
             cp app/build/outputs/apk/debug/app-debug.apk XtreamPlayer.apk
           fi
 
@@ -53,3 +58,15 @@ jobs:
         with:
           name: XtreamPlayer-apk
           path: XtreamPlayer.apk
+
+      # Publica el APK como Release para que el actualizador integrado lo detecte.
+      - name: Publicar Release
+        run: |
+          if gh release view "v$BUILD_NUMBER" >/dev/null 2>&1; then
+            gh release upload "v$BUILD_NUMBER" XtreamPlayer.apk --clobber
+          else
+            gh release create "v$BUILD_NUMBER" XtreamPlayer.apk \
+              --title "XtreamPlayer v$BUILD_NUMBER" \
+              --notes "Compilación automática $BUILD_NUMBER" \
+              --latest
+          fi
