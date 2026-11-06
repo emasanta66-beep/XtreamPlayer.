@@ -300,23 +300,56 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun playChannel(ch: Channel) {
-        val a = api ?: return
+        stack.add(channelScreen(ch) ?: return)
+    }
+
+    private fun channelScreen(ch: Channel): Screen.Player? {
+        val a = api ?: return null
         val main = liveFormat
         val other = if (main == "m3u8") "ts" else "m3u8"
-        stack.add(
-            Screen.Player(
-                PlayItem(
-                    title = ch.name,
-                    url = a.liveUrl(ch.id, main),
-                    altUrl = a.liveUrl(ch.id, other),
-                    isLive = true,
-                    streamId = ch.id,
-                    resumeKey = null,
-                    startPositionMs = 0L,
-                )
+        return Screen.Player(
+            PlayItem(
+                title = ch.name,
+                url = a.liveUrl(ch.id, main),
+                altUrl = a.liveUrl(ch.id, other),
+                isLive = true,
+                streamId = ch.id,
+                resumeKey = null,
+                startPositionMs = 0L,
             )
         )
     }
+
+    /** Cambia de canal sin salir del reproductor (reemplaza el reproductor actual). */
+    fun switchChannel(ch: Channel) {
+        val screen = channelScreen(ch) ?: return
+        if (stack.lastOrNull() is Screen.Player) stack[stack.lastIndex] = screen else stack.add(screen)
+    }
+
+    /** Canales de la misma categoría que el canal [streamId], en el orden de la lista. Vacío si aún no cargó En vivo. */
+    fun channelsInCategoryOf(streamId: Int?): List<Channel> {
+        if (streamId == null) return emptyList()
+        val items = live.items
+        val current = items.firstOrNull { it.id == streamId } ?: return emptyList()
+        return items.filter { it.categoryId == current.categoryId }
+    }
+
+    /** Nombre de la categoría de En vivo con ese id (null si no se conoce). */
+    fun liveCategoryName(categoryId: String): String? = live.cats.firstOrNull { it.id == categoryId }?.name
+
+    // ---------- Ajustes del reproductor ----------
+
+    /** Tamaño de imagen del reproductor (se recuerda entre canales y entre sesiones). */
+    var videoMode by mutableStateOf(storage.videoMode)
+        private set
+
+    fun setVideoMode(mode: Int) {
+        videoMode = mode
+        storage.videoMode = mode
+    }
+
+    /** Orientación del reproductor; se conserva al cambiar de canal o de capítulo. */
+    var playerLandscape by mutableStateOf(true)
 
     fun playMovie(id: Int, name: String, ext: String, image: String? = null) {
         val a = api ?: return

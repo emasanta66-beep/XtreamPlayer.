@@ -12,7 +12,10 @@ import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,14 +23,22 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.displayCutoutPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -76,10 +88,12 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import app.xtreamplayer.AppViewModel
+import app.xtreamplayer.data.Channel
 import app.xtreamplayer.data.EpgItem
 import app.xtreamplayer.data.Episode
 import app.xtreamplayer.data.Http
 import app.xtreamplayer.data.PlayItem
+import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -95,7 +109,6 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var usingAlt by remember { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
     var controlsVisible by remember { mutableStateOf(true) }
-    var landscape by remember { mutableStateOf(true) }
     var showTracks by remember { mutableStateOf(false) }
     var speedIndex by remember { mutableIntStateOf(2) }
     val componentActivity = remember(activity) { activity as? ComponentActivity }
@@ -134,21 +147,44 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var nextEpisode by remember { mutableStateOf<Episode?>(null) }
     LaunchedEffect(item.resumeKey) { nextEpisode = vm.nextEpisode(item) }
 
-    // Imagen: "Original" ajusta el video entero a la pantalla; "Ampliada" la llena recortando los bordes.
-    var zoomed by remember { mutableStateOf(false) }
+    // En vivo: canales de la misma categoría (para ⏭/⏮ y para el panel "Canales").
+    LaunchedEffect(item.isLive) { if (item.isLive) vm.ensureLive() }
+    val channels = remember(vm.live.items, item.streamId) {
+        if (item.isLive) vm.channelsInCategoryOf(item.streamId) else emptyList()
+    }
+    val channelIndex = channels.indexOfFirst { it.id == item.streamId }
+    // Siguiente y anterior dan la vuelta: después del último canal viene el primero.
+    val nextChannel = if (channelIndex >= 0 && channels.size > 1) channels[(channelIndex + 1) % channels.size] else null
+    val prevChannel =
+        if (channelIndex >= 0 && channels.size > 1) channels[(channelIndex - 1 + channels.size) % channels.size] else null
+    var showChannels by remember { mutableStateOf(false) }
 
-    // Player que ve la barra de controles: el botón ⏭ se activa si hay capítulo siguiente y lo reproduce.
-    val controlsPlayer = remember(exoPlayer, nextEpisode, item) {
-        val next = nextEpisode
+    // Tamaño de imagen y orientación (se conservan al cambiar de canal o capítulo).
+    val videoMode = vm.videoMode.coerceIn(0, videoModes.lastIndex)
+    val landscape = vm.playerLandscape
+
+    // Player que ve la barra de controles: ⏭ pasa al capítulo o canal siguiente, y en vivo ⏮ al canal anterior.
+    val controlsPlayer = remember(exoPlayer, nextEpisode, nextChannel, prevChannel, item) {
+        val nextEp = nextEpisode
+        val onNext: (() -> Unit)? = when {
+            nextChannel != null -> ({ vm.switchChannel(nextChannel) })
+            nextEp != null -> ({ vm.playNextEpisode(item, nextEp) })
+            else -> null
+        }
+        val onPrev: (() -> Unit)? = prevChannel?.let { ch -> ({ vm.switchChannel(ch) }) }
         object : ForwardingPlayer(exoPlayer) {
             override fun getAvailableCommands(): Player.Commands {
                 val builder = super.getAvailableCommands().buildUpon()
-                if (next != null) {
+                if (onNext != null) {
                     builder.add(Player.COMMAND_SEEK_TO_NEXT)
                     builder.add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
                 } else {
                     builder.remove(Player.COMMAND_SEEK_TO_NEXT)
                     builder.remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                }
+                if (onPrev != null) {
+                    builder.add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                    builder.add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
                 }
                 return builder.build()
             }
@@ -156,13 +192,23 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             override fun isCommandAvailable(command: Int): Boolean =
                 getAvailableCommands().contains(command)
 
-            override fun hasNextMediaItem(): Boolean = next != null
+            override fun hasNextMediaItem(): Boolean = onNext != null
 
             override fun seekToNext() {
-                if (next != null) vm.playNextEpisode(item, next)
+                onNext?.invoke()
             }
 
             override fun seekToNextMediaItem() = seekToNext()
+
+            override fun hasPreviousMediaItem(): Boolean = onPrev != null || super.hasPreviousMediaItem()
+
+            override fun seekToPrevious() {
+                if (onPrev != null) onPrev.invoke() else super.seekToPrevious()
+            }
+
+            override fun seekToPreviousMediaItem() {
+                if (onPrev != null) onPrev.invoke() else super.seekToPreviousMediaItem()
+            }
         }
     }
 
@@ -311,11 +357,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             update = { view ->
                 // Al cambiar el player de controles (por ejemplo cuando se conoce el capítulo siguiente) se refresca la barra.
                 if (view.player !== controlsPlayer) view.player = controlsPlayer
-                view.resizeMode = if (zoomed) {
-                    AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-                } else {
-                    AspectRatioFrameLayout.RESIZE_MODE_FIT
-                }
+                view.resizeMode = videoModes[videoMode].resizeMode
                 // En la ventana pequeña no se muestran los controles de PlayerView.
                 view.useController = !inPip
                 if (inPip) view.hideController()
@@ -396,10 +438,15 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 TextButton(onClick = { speedIndex = (speedIndex + 1) % speeds.size }) {
                     Text("Velocidad ${speedLabels[speedIndex]}", color = Color.White)
                 }
-                TextButton(onClick = { zoomed = !zoomed }) {
-                    Text(if (zoomed) "Imagen: Ampliada" else "Imagen: Original", color = Color.White)
+                if (item.isLive && channels.size > 1) {
+                    TextButton(onClick = { showChannels = true }) {
+                        Text("Canales", color = Color.White)
+                    }
                 }
-                TextButton(onClick = { landscape = !landscape }) {
+                TextButton(onClick = { vm.setVideoMode((videoMode + 1) % videoModes.size) }) {
+                    Text("Imagen: ${videoModes[videoMode].label}", color = Color.White)
+                }
+                TextButton(onClick = { vm.playerLandscape = !vm.playerLandscape }) {
                     Text(if (landscape) "Vertical" else "Horizontal", color = Color.White)
                 }
                 if (supportsPip) {
@@ -434,6 +481,24 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             )
         }
 
+        // Panel lateral con los canales de la misma categoría: tocar uno lo reproduce.
+        if (showChannels && !inPip && channels.isNotEmpty()) {
+            BackHandler { showChannels = false }
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) { detectTapGestures { showChannels = false } }
+            )
+            ChannelPanel(
+                title = vm.liveCategoryName(channels.first().categoryId) ?: "Canales",
+                channels = channels,
+                currentId = item.streamId,
+                onPick = { ch -> vm.switchChannel(ch) },
+                onClose = { showChannels = false },
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
+
         if (!inPip) {
             error?.let { message ->
                 Column(
@@ -451,6 +516,87 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                             attempt++
                         }) { Text("Reintentar") }
                         OutlinedButton(onClick = { vm.back() }) { Text("Volver") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Tamaños de imagen del reproductor; el botón "Imagen" recorre esta lista. */
+private class VideoMode(val label: String, val resizeMode: Int)
+
+private val videoModes = listOf(
+    VideoMode("Original", AspectRatioFrameLayout.RESIZE_MODE_FIT), // todo el video, con barras si hace falta
+    VideoMode("Ampliar", AspectRatioFrameLayout.RESIZE_MODE_ZOOM), // llena la pantalla recortando los bordes
+    VideoMode("Estirar", AspectRatioFrameLayout.RESIZE_MODE_FILL), // llena la pantalla deformando la imagen
+    VideoMode("Al ancho", AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH),
+    VideoMode("Al alto", AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT),
+)
+
+@Composable
+private fun ChannelPanel(
+    title: String,
+    channels: List<Channel>,
+    currentId: Int?,
+    onPick: (Channel) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val index = channels.indexOfFirst { it.id == currentId }
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = (index - 2).coerceAtLeast(0))
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .width(320.dp)
+            .background(Color(0xF2101018))
+            .displayCutoutPadding()
+            .pointerInput(Unit) {} // los toques dentro del panel no lo cierran
+            .padding(top = 8.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                title,
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onClose) {
+                Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
+            }
+        }
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+            items(channels, key = { it.id }) { ch ->
+                val current = ch.id == currentId
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (current) Color(0x33FFFFFF) else Color.Transparent)
+                        .clickable { if (current) onClose() else onPick(ch) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    AsyncImage(
+                        model = ch.icon,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.size(40.dp),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        ch.name,
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (current) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Reproduciendo", tint = Color.White)
                     }
                 }
             }
