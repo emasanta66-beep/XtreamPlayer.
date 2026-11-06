@@ -44,3 +44,10 @@ Con JDK 17, Android SDK (platform 35) y Gradle 8.14: `gradle assembleDebug`.
 - Las contraseñas se guardan en el almacenamiento privado de la app (sin copia de seguridad en la nube).
 - ExoPlayer no reproduce `.avi`; el resto de contenedores habituales funcionan.
 - Solo reproduce contenido de servicios que tengas contratados legítimamente.
+
+## Actualizaciones automáticas
+
+- Cada vez que se sube código a `main`, GitHub Actions compila el APK firmado y lo publica como **Release**.
+- La app busca una versión nueva al abrirse (como máximo cada 3 días) y desde el menú ⋮ → *Buscar actualización*.
+- Si hay una nueva, la descarga y abre el instalador de Android (el sistema siempre pide confirmar).
+- Para que funcione hay que crear dos *secrets* en el repo (Settings → Secrets and variables → Actions): `KEYSTORE_BASE64` y `KEYSTORE_PASSWORD`.

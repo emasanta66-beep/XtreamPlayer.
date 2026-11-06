@@ -21,6 +21,8 @@ import app.xtreamplayer.data.Recent
 import app.xtreamplayer.data.Series
 import app.xtreamplayer.data.SeriesDetail
 import app.xtreamplayer.data.Storage
+import app.xtreamplayer.data.UpdateInfo
+import app.xtreamplayer.data.Updater
 import app.xtreamplayer.data.XtreamApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -398,6 +400,65 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         is UnknownHostException -> "servidor no encontrado (revisa la dirección)"
         is SocketTimeoutException -> "tiempo de espera agotado"
         else -> e.message ?: e.javaClass.simpleName
+    }
+
+    // ---------------------------------------------------------------- Actualizaciones
+
+    private val updater = Updater(app)
+
+    /** Versión nueva disponible (null = nada que mostrar). */
+    var update by mutableStateOf<UpdateInfo?>(null)
+        private set
+
+    /** Avance de la descarga de 0 a 1 (null = no se está descargando). */
+    var updateProgress by mutableStateOf<Float?>(null)
+        private set
+
+    /** Busca una versión nueva. Sin `manual`, solo lo hace si pasaron 3 días desde la última vez. */
+    fun checkUpdate(manual: Boolean = false) {
+        if (!manual && !updater.isCheckDue()) return
+        viewModelScope.launch {
+            try {
+                val info = withContext(Dispatchers.IO) { updater.fetchLatest() }
+                updater.markChecked()
+                if (info != null) {
+                    update = info
+                } else if (manual) {
+                    toast("Ya tienes la última versión (${updater.currentName()})")
+                }
+            } catch (e: Exception) {
+                if (manual) toast("No se pudo buscar actualizaciones. Revisa tu conexión.")
+            }
+        }
+    }
+
+    fun installUpdate() {
+        val info = update ?: return
+        if (updateProgress != null) return
+        // Android exige que el usuario active "Instalar apps desconocidas" para esta app (una sola vez).
+        if (!updater.canInstall()) {
+            toast("Activa el permiso para instalar y vuelve a tocar Actualizar")
+            updater.openInstallPermissionSettings()
+            return
+        }
+        viewModelScope.launch {
+            updateProgress = 0f
+            try {
+                val file = withContext(Dispatchers.IO) {
+                    updater.download(info) { p -> updateProgress = p }
+                }
+                updater.install(file)
+                update = null
+            } catch (e: Exception) {
+                toast("No se pudo descargar la actualización. Inténtalo de nuevo.")
+            } finally {
+                updateProgress = null
+            }
+        }
+    }
+
+    fun dismissUpdate() {
+        if (updateProgress == null) update = null
     }
 
     private fun toast(msg: String) {

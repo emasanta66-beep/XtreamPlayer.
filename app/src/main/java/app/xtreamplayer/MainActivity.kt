@@ -15,6 +15,7 @@ import app.xtreamplayer.ui.AppTheme
 import app.xtreamplayer.ui.BrowseScreen
 import app.xtreamplayer.ui.PlayerScreen
 import app.xtreamplayer.ui.SeriesScreen
+import app.xtreamplayer.ui.UpdateDialog
 
 class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()
@@ -25,6 +26,8 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
+        // Busca una versión nueva al abrir la app (como máximo una vez cada 3 días).
+        if (savedInstanceState == null) vm.checkUpdate()
         setContent {
             AppTheme {
                 Root(vm)
@@ -49,4 +52,7 @@ private fun Root(vm: AppViewModel) {
             is Screen.Player -> PlayerScreen(vm, screen.item)
         }
     }
+
+    // El aviso de actualización no se muestra encima de un video.
+    if (screen !is Screen.Player) UpdateDialog(vm)
 }

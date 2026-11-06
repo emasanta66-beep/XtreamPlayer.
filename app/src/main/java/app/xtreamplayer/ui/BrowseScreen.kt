@@ -181,6 +181,13 @@ fun BrowseScreen(vm: AppViewModel) {
                                         menuOpen = false
                                     },
                                 )
+                                DropdownMenuItem(
+                                    text = { Text("Buscar actualización") },
+                                    onClick = {
+                                        vm.checkUpdate(manual = true)
+                                        menuOpen = false
+                                    },
+                                )
                             }
                         }
                     },
