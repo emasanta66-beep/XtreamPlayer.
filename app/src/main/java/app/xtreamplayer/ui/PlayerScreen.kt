@@ -443,7 +443,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                         Text("Canales", color = Color.White)
                     }
                 }
-                TextButton(onClick = { vm.setVideoMode((videoMode + 1) % videoModes.size) }) {
+                TextButton(onClick = { vm.chooseVideoMode((videoMode + 1) % videoModes.size) }) {
                     Text("Imagen: ${videoModes[videoMode].label}", color = Color.White)
                 }
                 TextButton(onClick = { vm.playerLandscape = !vm.playerLandscape }) {
