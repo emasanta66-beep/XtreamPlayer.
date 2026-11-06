@@ -138,7 +138,7 @@ class Updater(private val ctx: Context) {
     }
 
     private companion object {
-        const val REPO = "emasanta66-beep/XtreamPlayer"
+        const val REPO = "emasanta66-beep/XtreamPlayer."
         const val KEY_LAST_CHECK = "last_check"
         /** Cada cuánto se busca una actualización al abrir la app: 3 días. */
         val CHECK_EVERY_MS = TimeUnit.DAYS.toMillis(3)
