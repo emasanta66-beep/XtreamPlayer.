@@ -47,7 +47,8 @@ sealed interface Screen {
     }
 
     data class Player(val item: PlayItem) : Screen {
-        override val key: String = "player"
+        // Cada contenido tiene su propia clave: al pasar al siguiente capítulo el reproductor se recrea limpio.
+        override val key: String get() = "player_${item.resumeKey ?: item.url}"
     }
 }
 
@@ -178,6 +179,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 live = Section()
                 movies = Section()
                 series = Section()
+                seriesCache.clear()
                 favs.clear()
                 favs.addAll(storage.loadFavs(acc.id))
                 recents.clear()
@@ -206,7 +208,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---------- Contenido ----------
 
     fun ensureLive(force: Boolean = false) =
-        load(live, force, { it.liveCategories() }, { it.liveStreams() })
+        load(live, force, { it.liveCategories() }, { it.liveStreams() }, orderKey = LIVE_ORDER)
+
+    /** Mueve la categoría de En vivo en la posición [from] a la posición [to] y guarda el orden. */
+    fun moveLiveCategory(from: Int, to: Int) {
+        val list = live.cats.toMutableList()
+        if (from !in list.indices || to !in list.indices || from == to) return
+        list.add(to, list.removeAt(from))
+        live.cats = list
+        currentAccount?.let { storage.saveCatOrder(it.id, LIVE_ORDER, list.map { c -> c.id }) }
+    }
 
     fun ensureMovies(force: Boolean = false) =
         load(movies, force, { it.vodCategories() }, { it.vodStreams() })
@@ -219,16 +230,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         force: Boolean,
         fetchCats: (XtreamApi) -> List<Category>,
         fetchItems: (XtreamApi) -> List<T>,
+        orderKey: String? = null,
     ) {
         val a = api ?: return
         if (section.loading) return
         if (section.loaded && !force) return
+        val accountId = currentAccount?.id
         section.loading = true
         section.error = null
         viewModelScope.launch {
             try {
                 val (cats, items) = withContext(Dispatchers.IO) { fetchCats(a) to fetchItems(a) }
-                section.cats = cats
+                section.cats = if (orderKey != null && accountId != null) {
+                    applyCatOrder(cats, storage.loadCatOrder(accountId, orderKey))
+                } else {
+                    cats
+                }
                 section.items = items
                 section.loaded = true
             } catch (e: OutOfMemoryError) {
@@ -240,8 +257,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    suspend fun loadSeriesInfo(id: Int): Result<SeriesDetail> = withContext(Dispatchers.IO) {
-        runCatching { api!!.seriesInfo(id) }
+    /** Detalle de series ya cargado (temporadas y episodios), para saber cuál es el capítulo siguiente. */
+    private val seriesCache = HashMap<Int, SeriesDetail>()
+
+    /** Pone primero las categorías con orden guardado; las que no lo tienen (nuevas) van al final. */
+    private fun applyCatOrder(cats: List<Category>, order: List<String>): List<Category> {
+        if (order.isEmpty()) return cats
+        val rank = order.withIndex().associate { (i, id) -> id to i }
+        return cats.sortedBy { rank[it.id] ?: Int.MAX_VALUE } // sortedBy es estable: lo nuevo conserva su orden
+    }
+
+    suspend fun loadSeriesInfo(id: Int): Result<SeriesDetail> {
+        val result = withContext(Dispatchers.IO) { runCatching { api!!.seriesInfo(id) } }
+        result.onSuccess { seriesCache[id] = it }
+        return result
     }
 
     suspend fun epgFor(streamId: Int): List<EpgItem> = withContext(Dispatchers.IO) {
@@ -330,35 +359,59 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun episodeKey(ep: Episode): String? = currentAccount?.let { "${it.id}:ep:${ep.id}" }
 
     fun playEpisode(series: Series, ep: Episode) {
-        val a = api ?: return
-        val key = episodeKey(ep) ?: return
+        stack.add(episodeScreen(series, ep) ?: return)
+    }
+
+    private fun episodeScreen(series: Series, ep: Episode): Screen.Player? {
+        val a = api ?: return null
+        val key = episodeKey(ep) ?: return null
         val label = "T${ep.season}E${ep.number}"
-        stack.add(
-            Screen.Player(
-                PlayItem(
-                    title = "${series.name} · $label",
-                    url = a.episodeUrl(ep.id, ep.ext),
-                    altUrl = null,
-                    isLive = false,
-                    streamId = null,
-                    resumeKey = key,
-                    startPositionMs = storage.getPosition(key),
-                    recent = Recent(
-                        key = key,
-                        kind = "episode",
-                        contentId = ep.id,
-                        title = series.name,
-                        subtitle = label,
-                        image = ep.image ?: series.cover,
-                        ext = ep.ext,
-                        seriesId = series.id,
-                        positionMs = 0L,
-                        durationMs = 0L,
-                        updatedAt = 0L,
-                    ),
-                )
+        return Screen.Player(
+            PlayItem(
+                title = "${series.name} · $label",
+                url = a.episodeUrl(ep.id, ep.ext),
+                altUrl = null,
+                isLive = false,
+                streamId = null,
+                resumeKey = key,
+                startPositionMs = storage.getPosition(key),
+                recent = Recent(
+                    key = key,
+                    kind = "episode",
+                    contentId = ep.id,
+                    title = series.name,
+                    subtitle = label,
+                    image = ep.image ?: series.cover,
+                    ext = ep.ext,
+                    seriesId = series.id,
+                    positionMs = 0L,
+                    durationMs = 0L,
+                    updatedAt = 0L,
+                ),
             )
         )
+    }
+
+    /**
+     * Capítulo que sigue al que se está reproduciendo (pasa a la temporada siguiente si hace falta).
+     * Devuelve null si no es un episodio o si es el último disponible.
+     */
+    suspend fun nextEpisode(item: PlayItem): Episode? {
+        val r = item.recent ?: return null
+        if (r.kind != "episode" || r.seriesId == 0) return null
+        val detail = seriesCache[r.seriesId] ?: loadSeriesInfo(r.seriesId).getOrNull() ?: return null
+        // Las temporadas vienen ordenadas y los episodios de cada una, por número.
+        val all = detail.seasons.values.flatten()
+        val i = all.indexOfFirst { it.id == r.contentId }
+        return if (i >= 0) all.getOrNull(i + 1) else null
+    }
+
+    /** Reemplaza el reproductor actual por el siguiente capítulo. */
+    fun playNextEpisode(item: PlayItem, next: Episode) {
+        val r = item.recent ?: return
+        val series = Series(r.seriesId, r.title, r.image, "", null, null)
+        val screen = episodeScreen(series, next) ?: return
+        if (stack.lastOrNull() is Screen.Player) stack[stack.lastIndex] = screen else stack.add(screen)
     }
 
     /** Retoma un elemento de "Continuar viendo" justo donde se dejó. */
@@ -502,5 +555,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val MAX_RECENTS = 30
+        const val LIVE_ORDER = "live"
     }
 }

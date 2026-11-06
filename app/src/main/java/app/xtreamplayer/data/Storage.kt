@@ -113,6 +113,20 @@ class Storage(context: Context) {
         prefs.edit().putString("recent_$accountId", arr.toString()).apply()
     }
 
+    /** Orden elegido para las categorías de una sección ("live"), como lista de ids de categoría. */
+    fun loadCatOrder(accountId: String, section: String): List<String> = try {
+        val arr = JSONArray(prefs.getString("catorder_${section}_$accountId", "[]"))
+        List(arr.length()) { i -> arr.getString(i) }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    fun saveCatOrder(accountId: String, section: String, ids: List<String>) {
+        val arr = JSONArray()
+        ids.forEach { arr.put(it) }
+        prefs.edit().putString("catorder_${section}_$accountId", arr.toString()).apply()
+    }
+
     fun getPosition(key: String): Long = prefs.getLong("pos_$key", 0L)
 
     fun setPosition(key: String, ms: Long) {

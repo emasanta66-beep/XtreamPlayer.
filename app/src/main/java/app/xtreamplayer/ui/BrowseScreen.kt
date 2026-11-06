@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,16 +25,21 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -48,6 +54,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -80,19 +87,19 @@ import coil.compose.AsyncImage
 
 @Composable
 fun BrowseScreen(vm: AppViewModel) {
-    // Pestaña inicial: "Continuar" si hay algo empezado; si no, "En vivo".
-    var tab by rememberSaveable { mutableIntStateOf(if (vm.recents.isEmpty()) 1 else 0) }
+    // Pestaña inicial: "Películas". "Continuar" queda al final, después de "Favoritos".
+    var tab by rememberSaveable { mutableIntStateOf(TAB_MOVIES) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    val titles = listOf("Continuar", "En vivo", "Películas", "Series", "Favoritos")
+    val titles = listOf("En vivo", "Películas", "Series", "Favoritos", "Continuar")
 
     LaunchedEffect(tab) {
         when (tab) {
-            1 -> vm.ensureLive()
-            2 -> vm.ensureMovies()
-            3 -> vm.ensureSeries()
+            TAB_LIVE -> vm.ensureLive()
+            TAB_MOVIES -> vm.ensureMovies()
+            TAB_SERIES -> vm.ensureSeries()
         }
     }
     LaunchedEffect(searching) {
@@ -157,9 +164,9 @@ fun BrowseScreen(vm: AppViewModel) {
                         }
                         IconButton(onClick = {
                             when (tab) {
-                                1 -> vm.ensureLive(true)
-                                2 -> vm.ensureMovies(true)
-                                3 -> vm.ensureSeries(true)
+                                TAB_LIVE -> vm.ensureLive(true)
+                                TAB_MOVIES -> vm.ensureMovies(true)
+                                TAB_SERIES -> vm.ensureSeries(true)
                             }
                         }) { Icon(Icons.Default.Refresh, contentDescription = "Actualizar") }
                         Box {
@@ -216,14 +223,20 @@ fun BrowseScreen(vm: AppViewModel) {
     ) { pad ->
         val modifier = Modifier.padding(pad).fillMaxSize()
         when (tab) {
-            0 -> ContinueTab(vm, query, modifier)
-            1 -> LiveTab(vm, query, modifier)
-            2 -> MoviesTab(vm, query, modifier)
-            3 -> SeriesTab(vm, query, modifier)
-            else -> FavTab(vm, query, modifier)
+            TAB_LIVE -> LiveTab(vm, query, modifier)
+            TAB_MOVIES -> MoviesTab(vm, query, modifier)
+            TAB_SERIES -> SeriesTab(vm, query, modifier)
+            TAB_FAVS -> FavTab(vm, query, modifier)
+            else -> ContinueTab(vm, query, modifier)
         }
     }
 }
+
+// Posición de cada pestaña (mismo orden que `titles`).
+private const val TAB_LIVE = 0
+private const val TAB_MOVIES = 1
+private const val TAB_SERIES = 2
+private const val TAB_FAVS = 3
 
 // ---------------------------------------------------------------- Pestañas
 
@@ -284,8 +297,16 @@ private fun ContinueRow(r: Recent, onClick: () -> Unit, onRemove: () -> Unit) {
 @Composable
 private fun LiveTab(vm: AppViewModel, query: String, modifier: Modifier) {
     val s = vm.live
+    var ordering by remember { mutableStateOf(false) }
+    if (ordering) {
+        CategoryOrderDialog(
+            cats = s.cats,
+            onMove = { from, to -> vm.moveLiveCategory(from, to) },
+            onDismiss = { ordering = false },
+        )
+    }
     SectionHost(s, modifier, onRetry = { vm.ensureLive(true) }) {
-        CategoryRow(s.cats, s.selectedCat) { s.selectedCat = it }
+        CategoryRow(s.cats, s.selectedCat, onReorder = { ordering = true }) { s.selectedCat = it }
         val list = remember(s.items, s.selectedCat, query) {
             filterBy(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
         }
@@ -442,13 +463,26 @@ private fun <T> SectionHost(
 }
 
 @Composable
-private fun CategoryRow(cats: List<Category>, selected: String?, onSelect: (String?) -> Unit) {
+private fun CategoryRow(
+    cats: List<Category>,
+    selected: String?,
+    onReorder: (() -> Unit)? = null,
+    onSelect: (String?) -> Unit,
+) {
     if (cats.isEmpty()) return
     LazyRow(
         contentPadding = PaddingValues(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(vertical = 6.dp),
     ) {
+        if (onReorder != null) {
+            item {
+                IconButton(onClick = onReorder, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Ordenar categorías")
+                }
+            }
+        }
         item {
             FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text("Todos") })
         }
@@ -460,6 +494,49 @@ private fun CategoryRow(cats: List<Category>, selected: String?, onSelect: (Stri
             )
         }
     }
+}
+
+/** Diálogo para cambiar el orden de las categorías: sube, baja o manda una al principio. */
+@Composable
+private fun CategoryOrderDialog(
+    cats: List<Category>,
+    onMove: (from: Int, to: Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ordenar categorías") },
+        text = {
+            Column {
+                Text(
+                    "Pon tus categorías favoritas primero. El orden se guarda para esta lista.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                LazyColumn(Modifier.heightIn(max = 420.dp)) {
+                    itemsIndexed(cats, key = { _, c -> c.id }) { i, c ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                c.name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = { onMove(i, 0) }, enabled = i > 0) { Text("Primero") }
+                            IconButton(onClick = { onMove(i, i - 1) }, enabled = i > 0) {
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Subir")
+                            }
+                            IconButton(onClick = { onMove(i, i + 1) }, enabled = i < cats.lastIndex) {
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Bajar")
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Listo") } },
+    )
 }
 
 @Composable
