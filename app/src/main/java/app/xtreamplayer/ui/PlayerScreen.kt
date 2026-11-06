@@ -8,6 +8,7 @@ import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.util.Rational
 import android.view.View
+import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -55,6 +56,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.app.PictureInPictureModeChangedInfo
+import androidx.core.util.Consumer
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -92,7 +95,8 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var landscape by remember { mutableStateOf(true) }
     var showTracks by remember { mutableStateOf(false) }
     var speedIndex by remember { mutableIntStateOf(2) }
-    var inPip by remember { mutableStateOf(activity?.isInPictureInPictureMode == true) }
+    val componentActivity = remember(activity) { activity as? ComponentActivity }
+    var inPip by remember { mutableStateOf(componentActivity?.isInPictureInPictureMode == true) }
     val supportsPip = remember(activity) {
         activity?.packageManager?.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) == true
     }
@@ -177,16 +181,16 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     }
 
     // Sigue el estado de picture-in-picture para ocultar los controles propios.
-    DisposableEffect(activity) {
-        val act = activity
+    DisposableEffect(componentActivity) {
+        val act = componentActivity
         if (act == null) {
             onDispose { }
         } else {
-            val listener = Activity.OnPictureInPictureModeChangedListener { info ->
+            val observer = Consumer<PictureInPictureModeChangedInfo> { info ->
                 inPip = info.isInPictureInPictureMode
             }
-            act.addOnPictureInPictureModeChangedListener(listener)
-            onDispose { act.removeOnPictureInPictureModeChangedListener(listener) }
+            act.addOnPictureInPictureModeChangedListener(observer)
+            onDispose { act.removeOnPictureInPictureModeChangedListener(observer) }
         }
     }
 
