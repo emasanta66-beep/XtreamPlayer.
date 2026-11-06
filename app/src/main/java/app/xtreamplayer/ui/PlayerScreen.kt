@@ -62,6 +62,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -126,6 +127,38 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     // Capítulo siguiente (solo en series; null si es el último o si no es un episodio).
     var nextEpisode by remember { mutableStateOf<Episode?>(null) }
     LaunchedEffect(item.resumeKey) { nextEpisode = vm.nextEpisode(item) }
+
+    // Imagen: "Original" ajusta el video entero a la pantalla; "Ampliada" la llena recortando los bordes.
+    var zoomed by remember { mutableStateOf(false) }
+
+    // Player que ve la barra de controles: el botón ⏭ se activa si hay capítulo siguiente y lo reproduce.
+    val controlsPlayer = remember(exoPlayer, nextEpisode, item) {
+        val next = nextEpisode
+        object : ForwardingPlayer(exoPlayer) {
+            override fun getAvailableCommands(): Player.Commands {
+                val builder = super.getAvailableCommands().buildUpon()
+                if (next != null) {
+                    builder.add(Player.COMMAND_SEEK_TO_NEXT)
+                    builder.add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                } else {
+                    builder.remove(Player.COMMAND_SEEK_TO_NEXT)
+                    builder.remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                }
+                return builder.build()
+            }
+
+            override fun isCommandAvailable(command: Int): Boolean =
+                getAvailableCommands().contains(command)
+
+            override fun hasNextMediaItem(): Boolean = next != null
+
+            override fun seekToNext() {
+                if (next != null) vm.playNextEpisode(item, next)
+            }
+
+            override fun seekToNextMediaItem() = seekToNext()
+        }
+    }
 
     // Velocidad de reproducción (botón "Velocidad ...").
     LaunchedEffect(speedIndex) { exoPlayer.setPlaybackSpeed(speeds[speedIndex]) }
@@ -255,7 +288,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 PlayerView(ctx).apply {
-                    player = exoPlayer
+                    player = controlsPlayer
                     useController = true
                     keepScreenOn = true
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -270,6 +303,13 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 }
             },
             update = { view ->
+                // Al cambiar el player de controles (por ejemplo cuando se conoce el capítulo siguiente) se refresca la barra.
+                if (view.player !== controlsPlayer) view.player = controlsPlayer
+                view.resizeMode = if (zoomed) {
+                    AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                } else {
+                    AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
                 // En la ventana pequeña no se muestran los controles de PlayerView.
                 view.useController = !inPip
                 if (inPip) view.hideController()
@@ -342,11 +382,6 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                nextEpisode?.let { next ->
-                    TextButton(onClick = { vm.playNextEpisode(item, next) }) {
-                        Text("Siguiente (T${next.season}E${next.number})", color = Color.White)
-                    }
-                }
                 if (audioOptions.size > 1 || textOptions.isNotEmpty()) {
                     TextButton(onClick = { showTracks = true }) {
                         Text("Audio y subs", color = Color.White)
@@ -354,6 +389,9 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 }
                 TextButton(onClick = { speedIndex = (speedIndex + 1) % speeds.size }) {
                     Text("Velocidad ${speedLabels[speedIndex]}", color = Color.White)
+                }
+                TextButton(onClick = { zoomed = !zoomed }) {
+                    Text(if (zoomed) "Imagen: Ampliada" else "Imagen: Original", color = Color.White)
                 }
                 TextButton(onClick = { landscape = !landscape }) {
                     Text(if (landscape) "Vertical" else "Horizontal", color = Color.White)
