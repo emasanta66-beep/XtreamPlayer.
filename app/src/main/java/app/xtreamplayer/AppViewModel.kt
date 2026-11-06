@@ -222,6 +222,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Reproducción ----------
 
+       @JvmName("applyLiveFormat")
     fun setLiveFormat(format: String) {
         liveFormat = format
         storage.liveFormat = format
