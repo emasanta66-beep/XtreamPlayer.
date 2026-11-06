@@ -42,6 +42,9 @@ data class Episode(
     val number: Int,
     val ext: String,
     val plot: String?,
+    /** Imagen de vista previa del capítulo (si el servidor la entrega). */
+    val image: String? = null,
+    val duration: String? = null,
 )
 
 data class SeriesDetail(
@@ -81,4 +84,26 @@ data class PlayItem(
     /** Clave para recordar la posición de reproducción (películas y episodios). */
     val resumeKey: String?,
     val startPositionMs: Long,
+    /** Datos para listar este contenido en "Continuar viendo" (películas y episodios). */
+    val recent: Recent? = null,
+)
+
+/** Elemento de "Continuar viendo". kind: "movie" | "episode". */
+data class Recent(
+    /** Misma clave que usa el reproductor para recordar la posición. */
+    val key: String,
+    val kind: String,
+    /** Id del stream (película) o del episodio. */
+    val contentId: String,
+    /** Nombre de la película o de la serie. */
+    val title: String,
+    /** Por ejemplo "T1E3" (vacío en películas). */
+    val subtitle: String,
+    val image: String?,
+    val ext: String,
+    /** Id de la serie (0 en películas). */
+    val seriesId: Int,
+    val positionMs: Long,
+    val durationMs: Long,
+    val updatedAt: Long,
 )

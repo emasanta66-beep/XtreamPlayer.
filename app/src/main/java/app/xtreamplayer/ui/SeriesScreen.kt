@@ -133,6 +133,19 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                             )
                         }
                     }
+                    val resume = vm.recents.firstOrNull { it.seriesId == series.id }
+                    if (resume != null) {
+                        item {
+                            Button(
+                                onClick = { vm.playRecent(resume) },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Continuar ${resume.subtitle}")
+                            }
+                        }
+                    }
                     item {
                         LazyRow(
                             contentPadding = PaddingValues(horizontal = 12.dp),
@@ -149,32 +162,42 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                         }
                     }
                     items(episodes) { ep ->
+                        val saved = vm.recents.firstOrNull { it.key == vm.episodeKey(ep) }
+                        val progress = saved?.takeIf { it.durationMs > 0 }
+                            ?.let { it.positionMs.toFloat() / it.durationMs }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { vm.playEpisode(series.name, ep) }
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                                .clickable { vm.playEpisode(series, ep) }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.Top,
                         ) {
-                            Icon(
-                                Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp),
+                            VideoThumb(
+                                image = ep.image ?: series.cover,
+                                progress = progress,
+                                modifier = Modifier.width(150.dp),
                             )
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(
                                     "E${ep.number} · ${ep.title}",
+                                    style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                 )
+                                if (!ep.duration.isNullOrBlank()) {
+                                    Text(
+                                        ep.duration,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                                 if (!ep.plot.isNullOrBlank()) {
                                     Text(
                                         ep.plot,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 2,
+                                        maxLines = 3,
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                 }

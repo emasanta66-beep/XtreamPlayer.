@@ -17,6 +17,7 @@ import app.xtreamplayer.data.EpgItem
 import app.xtreamplayer.data.Fav
 import app.xtreamplayer.data.Movie
 import app.xtreamplayer.data.PlayItem
+import app.xtreamplayer.data.Recent
 import app.xtreamplayer.data.Series
 import app.xtreamplayer.data.SeriesDetail
 import app.xtreamplayer.data.Storage
@@ -65,6 +66,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val accounts = mutableStateListOf<Account>().apply { addAll(storage.loadAccounts()) }
     val stack = mutableStateListOf<Screen>(Screen.Accounts)
     val favs = mutableStateListOf<Fav>()
+    /** "Continuar viendo": lo más reciente primero. */
+    val recents = mutableStateListOf<Recent>()
 
     var busy by mutableStateOf(false)
         private set
@@ -153,6 +156,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 series = Section()
                 favs.clear()
                 favs.addAll(storage.loadFavs(acc.id))
+                recents.clear()
+                recents.addAll(storage.loadRecents(acc.id))
                 stack.add(Screen.Browse(acc.id))
             } catch (e: Exception) {
                 toast("No se pudo abrir la lista: ${errorText(e)}")
@@ -247,20 +252,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    fun playMovie(id: Int, name: String, ext: String) {
+    fun playMovie(id: Int, name: String, ext: String, image: String? = null) {
         val a = api ?: return
         val acc = currentAccount ?: return
         val key = "${acc.id}:movie:$id"
+        val extension = ext.ifEmpty { "mp4" }
         stack.add(
             Screen.Player(
                 PlayItem(
                     title = name,
-                    url = a.movieUrl(id, ext.ifEmpty { "mp4" }),
+                    url = a.movieUrl(id, extension),
                     altUrl = null,
                     isLive = false,
                     streamId = null,
                     resumeKey = key,
                     startPositionMs = storage.getPosition(key),
+                    recent = Recent(
+                        key = key,
+                        kind = "movie",
+                        contentId = id.toString(),
+                        title = name,
+                        subtitle = "",
+                        image = image,
+                        ext = extension,
+                        seriesId = 0,
+                        positionMs = 0L,
+                        durationMs = 0L,
+                        updatedAt = 0L,
+                    ),
                 )
             )
         )
@@ -270,26 +289,105 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         stack.add(Screen.SeriesPage(s))
     }
 
-    fun playEpisode(seriesName: String, ep: Episode) {
+    /** Clave con la que se recuerda la posición de un episodio (la misma que usa el reproductor). */
+    fun episodeKey(ep: Episode): String? = currentAccount?.let { "${it.id}:ep:${ep.id}" }
+
+    fun playEpisode(series: Series, ep: Episode) {
         val a = api ?: return
-        val acc = currentAccount ?: return
-        val key = "${acc.id}:ep:${ep.id}"
+        val key = episodeKey(ep) ?: return
+        val label = "T${ep.season}E${ep.number}"
         stack.add(
             Screen.Player(
                 PlayItem(
-                    title = "$seriesName · T${ep.season}E${ep.number}",
+                    title = "${series.name} · $label",
                     url = a.episodeUrl(ep.id, ep.ext),
                     altUrl = null,
                     isLive = false,
                     streamId = null,
                     resumeKey = key,
                     startPositionMs = storage.getPosition(key),
+                    recent = Recent(
+                        key = key,
+                        kind = "episode",
+                        contentId = ep.id,
+                        title = series.name,
+                        subtitle = label,
+                        image = ep.image ?: series.cover,
+                        ext = ep.ext,
+                        seriesId = series.id,
+                        positionMs = 0L,
+                        durationMs = 0L,
+                        updatedAt = 0L,
+                    ),
                 )
             )
         )
     }
 
-    fun savePosition(key: String, ms: Long) = storage.setPosition(key, ms)
+    /** Retoma un elemento de "Continuar viendo" justo donde se dejó. */
+    fun playRecent(r: Recent) {
+        val a = api ?: return
+        val ext = r.ext.ifEmpty { "mp4" }
+        val url = if (r.kind == "movie") {
+            a.movieUrl(r.contentId.toIntOrNull() ?: return, ext)
+        } else {
+            a.episodeUrl(r.contentId, ext)
+        }
+        stack.add(
+            Screen.Player(
+                PlayItem(
+                    title = if (r.subtitle.isEmpty()) r.title else "${r.title} · ${r.subtitle}",
+                    url = url,
+                    altUrl = null,
+                    isLive = false,
+                    streamId = null,
+                    resumeKey = r.key,
+                    startPositionMs = storage.getPosition(r.key).takeIf { it > 0 } ?: r.positionMs,
+                    recent = r,
+                )
+            )
+        )
+    }
+
+    fun removeRecent(r: Recent) {
+        recents.removeAll { it.key == r.key }
+        persistRecents()
+    }
+
+    /**
+     * Se llama al salir del reproductor: recuerda la posición y actualiza "Continuar viendo".
+     * Si ya casi terminó, se marca como visto y sale de la lista.
+     */
+    fun saveProgress(item: PlayItem, positionMs: Long, durationMs: Long) {
+        val key = item.resumeKey ?: return
+        if (durationMs <= 0) return
+        val finished = positionMs > durationMs - 15_000
+        storage.setPosition(key, if (finished) 0L else positionMs)
+
+        val idx = recents.indexOfFirst { it.key == key }
+        if (finished) {
+            if (idx >= 0) recents.removeAt(idx)
+        } else {
+            val base = item.recent ?: return
+            // No se agrega lo que se abrió por menos de 10 segundos (salvo que ya estuviera en la lista).
+            if (positionMs < 10_000 && idx < 0) return
+            if (idx >= 0) recents.removeAt(idx)
+            recents.add(
+                0,
+                base.copy(
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    updatedAt = System.currentTimeMillis(),
+                ),
+            )
+            while (recents.size > MAX_RECENTS) recents.removeAt(recents.lastIndex)
+        }
+        persistRecents()
+    }
+
+    private fun persistRecents() {
+        currentAccount?.let { storage.saveRecents(it.id, recents.toList()) }
+    }
 
     // ---------- Utilidades ----------
 
@@ -304,5 +402,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun toast(msg: String) {
         Toast.makeText(getApplication<Application>(), msg, Toast.LENGTH_LONG).show()
+    }
+
+    private companion object {
+        const val MAX_RECENTS = 30
     }
 }

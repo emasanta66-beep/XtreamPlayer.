@@ -14,6 +14,9 @@ Kotlin + Jetpack Compose + Media3 (ExoPlayer). Minimo Android 8.0 (API 26).
 - En vivo: si `.m3u8` falla, reintenta con `.ts` automáticamente (y viceversa). Se puede elegir el formato por defecto en el menú ⋮.
 - Películas y episodios recuerdan por dónde ibas.
 - Favoritos por cuenta.
+- **Continuar viendo**: pestaña con las películas y episodios que dejaste a medias, con vista previa y barra de avance. Al tocar uno se retoma justo donde lo dejaste (y se quita solo al terminarlo).
+- Series con vista previa de cada capítulo (imagen, duración y avance) y botón para continuar el último episodio visto.
+- **Audio y subtítulos**: en el reproductor, botón "Audio y subs" para cambiar el idioma del audio y activar o desactivar subtítulos (si el contenido trae esas pistas).
 
 ## Obtener el APK
 
