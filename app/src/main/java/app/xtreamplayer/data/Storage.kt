@@ -135,6 +135,13 @@ class Storage(context: Context) {
         editor.apply()
     }
 
+    /** Tamaño de imagen elegido en el reproductor (posición en la lista de modos). */
+    var videoMode: Int
+        get() = prefs.getInt("video_mode", 0)
+        set(value) {
+            prefs.edit().putInt("video_mode", value).apply()
+        }
+
     var liveFormat: String
         get() = prefs.getString("live_format", "m3u8") ?: "m3u8"
         set(value) {
