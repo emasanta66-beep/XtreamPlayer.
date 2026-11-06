@@ -1,14 +1,18 @@
 package app.xtreamplayer.ui
 
 import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import android.util.Rational
 import android.view.View
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -86,6 +91,13 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var controlsVisible by remember { mutableStateOf(true) }
     var landscape by remember { mutableStateOf(true) }
     var showTracks by remember { mutableStateOf(false) }
+    var speedIndex by remember { mutableIntStateOf(2) }
+    var inPip by remember { mutableStateOf(activity?.isInPictureInPictureMode == true) }
+    val supportsPip = remember(activity) {
+        activity?.packageManager?.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) == true
+    }
+    val speeds = remember { listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f) }
+    val speedLabels = remember { listOf("0.5x", "0.75x", "1x", "1.25x", "1.5x", "2x") }
 
     val exoPlayer = remember {
         val http = DefaultHttpDataSource.Factory()
@@ -95,6 +107,8 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             .setReadTimeoutMs(30_000)
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(DefaultMediaSourceFactory(http))
+            .setSeekBackIncrementMs(10_000)
+            .setSeekForwardIncrementMs(10_000)
             .build()
             .apply { playWhenReady = true }
     }
@@ -103,6 +117,11 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var tracks by remember { mutableStateOf(exoPlayer.currentTracks) }
     val audioOptions = remember(tracks) { tracks.options(C.TRACK_TYPE_AUDIO) }
     val textOptions = remember(tracks) { tracks.options(C.TRACK_TYPE_TEXT) }
+
+    // Velocidad de reproducción (botón "Velocidad ...").
+    LaunchedEffect(speedIndex) { exoPlayer.setPlaybackSpeed(speeds[speedIndex]) }
+    // Al entrar en picture-in-picture se cierra el diálogo de pistas.
+    LaunchedEffect(inPip) { if (inPip) showTracks = false }
 
     // Carga (o recarga) el contenido cuando cambia la URL o se pulsa "Reintentar".
     val currentUrl = if (usingAlt) item.altUrl ?: item.url else item.url
@@ -145,14 +164,30 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         }
     }
 
-    // Pausa al salir de la app.
+    // Pausa al salir de la app, salvo que se haya quedado en picture-in-picture.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, exoPlayer) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE) exoPlayer.pause()
+            if (event == Lifecycle.Event.ON_PAUSE && activity?.isInPictureInPictureMode != true) {
+                exoPlayer.pause()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Sigue el estado de picture-in-picture para ocultar los controles propios.
+    DisposableEffect(activity) {
+        val act = activity
+        if (act == null) {
+            onDispose { }
+        } else {
+            val listener = Activity.OnPictureInPictureModeChangedListener { info ->
+                inPip = info.isInPictureInPictureMode
+            }
+            act.addOnPictureInPictureModeChangedListener(listener)
+            onDispose { act.removeOnPictureInPictureModeChangedListener(listener) }
+        }
     }
 
     // Pantalla completa mientras se reproduce.
@@ -187,6 +222,20 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
 
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
+    fun enterPip() {
+        val act = activity ?: return
+        if (!supportsPip || act.isInPictureInPictureMode) return
+        val size = exoPlayer.videoSize
+        val ratio = if (size.width > 0 && size.height > 0) {
+            Rational(size.width, size.height)
+        } else {
+            Rational(16, 9)
+        }
+        act.enterPictureInPictureMode(
+            PictureInPictureParams.Builder().setAspectRatio(ratio).build()
+        )
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -202,6 +251,8 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                     keepScreenOn = true
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
+                    setShowRewindButton(true)
+                    setShowFastForwardButton(true)
                     setControllerVisibilityListener(
                         PlayerView.ControllerVisibilityListener { visibility ->
                             controlsVisible = visibility == View.VISIBLE
@@ -209,10 +260,15 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                     )
                 }
             },
+            update = { view ->
+                // En la ventana pequeña no se muestran los controles de PlayerView.
+                view.useController = !inPip
+                if (inPip) view.hideController()
+            },
         )
 
         AnimatedVisibility(
-            visible = controlsVisible,
+            visible = controlsVisible && !inPip,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopStart),
@@ -258,18 +314,45 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                         )
                     }
                 }
+            }
+        }
+
+        // Acciones del reproductor, encima de la barra de progreso de PlayerView.
+        AnimatedVisibility(
+            visible = controlsVisible && !inPip,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 8.dp, end = 8.dp, top = 28.dp, bottom = 60.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 if (audioOptions.size > 1 || textOptions.isNotEmpty()) {
                     TextButton(onClick = { showTracks = true }) {
                         Text("Audio y subs", color = Color.White)
                     }
                 }
+                TextButton(onClick = { speedIndex = (speedIndex + 1) % speeds.size }) {
+                    Text("Velocidad ${speedLabels[speedIndex]}", color = Color.White)
+                }
                 TextButton(onClick = { landscape = !landscape }) {
                     Text(if (landscape) "Vertical" else "Horizontal", color = Color.White)
+                }
+                if (supportsPip) {
+                    TextButton(onClick = { enterPip() }) {
+                        Text("PiP", color = Color.White)
+                    }
                 }
             }
         }
 
-        if (showTracks) {
+        if (showTracks && !inPip) {
             TrackDialog(
                 audio = if (audioOptions.size > 1) audioOptions else emptyList(),
                 text = textOptions,
@@ -293,22 +376,24 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             )
         }
 
-        error?.let { message ->
-            Column(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .background(Color(0xE6000000), RoundedCornerShape(12.dp))
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(message, color = Color.White, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = {
-                        usingAlt = false
-                        attempt++
-                    }) { Text("Reintentar") }
-                    OutlinedButton(onClick = { vm.back() }) { Text("Volver") }
+        if (!inPip) {
+            error?.let { message ->
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .background(Color(0xE6000000), RoundedCornerShape(12.dp))
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(message, color = Color.White, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = {
+                            usingAlt = false
+                            attempt++
+                        }) { Text("Reintentar") }
+                        OutlinedButton(onClick = { vm.back() }) { Text("Volver") }
+                    }
                 }
             }
         }

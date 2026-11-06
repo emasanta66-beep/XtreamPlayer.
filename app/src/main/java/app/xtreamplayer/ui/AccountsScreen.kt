@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -35,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,8 +57,28 @@ fun AccountsScreen(vm: AppViewModel) {
     var dialogOpen by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<Account?>(null) }
 
+    // Si se llega desde ⋮ → "Añadir lista", abre el diálogo automáticamente.
+    LaunchedEffect(vm.pendingAddAccount) {
+        if (vm.pendingAddAccount) {
+            editing = null
+            dialogOpen = true
+            vm.consumeAddAccountRequest()
+        }
+    }
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Xtream Player") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Xtream Player") },
+                navigationIcon = {
+                    if (vm.stack.size > 1) {
+                        IconButton(onClick = { vm.back() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                        }
+                    }
+                },
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(onClick = {
                 editing = null

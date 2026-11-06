@@ -1,7 +1,10 @@
 package app.xtreamplayer
 
+import android.app.PictureInPictureParams
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
+import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
@@ -32,6 +35,22 @@ class MainActivity : ComponentActivity() {
             AppTheme {
                 Root(vm)
             }
+        }
+    }
+
+    /** Al pulsar Inicio mientras se reproduce, la app pasa a picture-in-picture. */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val watching = vm.stack.lastOrNull() is Screen.Player
+        if (watching &&
+            !isInPictureInPictureMode &&
+            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        ) {
+            enterPictureInPictureMode(
+                PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .build()
+            )
         }
     }
 }

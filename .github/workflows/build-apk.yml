@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -20,10 +23,26 @@ jobs:
         with:
           gradle-version: 8.14.3
 
+      # Si el repositorio tiene el secret KEYSTORE_BASE64, firma con esa clave
+      # (así el APK se instala encima de la versión anterior). Si no, usa debug.
+      - name: Preparar firma
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/xtream.jks"
+            echo "KEYSTORE_PATH=$RUNNER_TEMP/xtream.jks" >> "$GITHUB_ENV"
+          fi
+
       - name: Compilar APK
-        run: gradle assembleDebug --no-daemon
+        run: |
+          if [ -n "$KEYSTORE_PATH" ]; then
+            gradle assembleRelease --no-daemon
+            cp app/build/outputs/apk/release/app-release.apk XtreamPlayer.apk
+          else
+            gradle assembleDebug --no-daemon
+            cp app/build/outputs/apk/debug/app-debug.apk XtreamPlayer.apk
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
           name: XtreamPlayer-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: XtreamPlayer.apk

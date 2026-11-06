@@ -7,10 +7,15 @@ Kotlin + Jetpack Compose + Media3 (ExoPlayer). Minimo Android 8.0 (API 26).
 
 - Varias cuentas Xtream (servidor, usuario, contraseña). También acepta pegar la URL
   `http://host:puerto/get.php?username=...&password=...` y extrae los datos solo.
+- Al abrir la app entra directamente en la última lista usada. Desde el menú **⋮** se puede
+  cambiar de lista o añadir una nueva sin salir del reproductor.
 - Pestañas **En vivo / Películas / Series / Favoritos**, con categorías y búsqueda.
 - Canales en vivo con guía (ahora / después) vía `get_short_epg`.
 - Series con temporadas y episodios.
-- Reproductor a pantalla completa (HLS, TS, MP4, MKV...), botón vertical/horizontal.
+- Reproductor a pantalla completa (HLS, TS, MP4, MKV...), botón vertical/horizontal,
+  saltos de **±10 s** y selector de **velocidad** (0,5x a 2x).
+- **Picture-in-picture**: al pulsar Inicio mientras se reproduce, el vídeo sigue en una
+  ventana pequeña (también hay un botón **PiP** en el reproductor).
 - En vivo: si `.m3u8` falla, reintenta con `.ts` automáticamente (y viceversa). Se puede elegir el formato por defecto en el menú ⋮.
 - Películas y episodios recuerdan por dónde ibas.
 - Favoritos por cuenta.
