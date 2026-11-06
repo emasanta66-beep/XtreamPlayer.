@@ -168,6 +168,20 @@ fun BrowseScreen(vm: AppViewModel) {
                             }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                 DropdownMenuItem(
+                                    text = { Text("Cambiar de lista") },
+                                    onClick = {
+                                        vm.manageAccounts()
+                                        menuOpen = false
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Añadir lista") },
+                                    onClick = {
+                                        vm.manageAccounts(add = true)
+                                        menuOpen = false
+                                    },
+                                )
+                                DropdownMenuItem(
                                     text = { Text("En vivo: HLS (.m3u8)" + if (vm.liveFormat == "m3u8") "  ✓" else "") },
                                     onClick = {
                                         vm.setLiveFormat("m3u8")

@@ -126,4 +126,13 @@ class Storage(context: Context) {
         set(value) {
             prefs.edit().putString("live_format", value).apply()
         }
+
+    /** Última lista abierta, para entrar directamente en ella al arrancar la app. */
+    var lastAccountId: String?
+        get() = prefs.getString("last_account", null)
+        set(value) {
+            val editor = prefs.edit()
+            if (value != null) editor.putString("last_account", value) else editor.remove("last_account")
+            editor.apply()
+        }
 }

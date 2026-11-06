@@ -85,6 +85,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var liveFormat by mutableStateOf(storage.liveFormat)
         private set
+    /** Petición pendiente de abrir el diálogo "Añadir lista" al entrar en gestión de cuentas. */
+    var pendingAddAccount by mutableStateOf(false)
+        private set
+
+    init {
+        // Si ya hay listas guardadas, entra directamente en la última usada (o en la primera).
+        val last = storage.lastAccountId?.let { id -> accounts.firstOrNull { it.id == id } }
+            ?: accounts.firstOrNull()
+        if (last != null) openAccount(last, fromLaunch = true)
+    }
 
     // ---------- Navegación ----------
 
@@ -141,9 +151,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteAccount(acc: Account) {
         accounts.removeAll { it.id == acc.id }
         storage.saveAccounts(accounts.toList())
+        if (storage.lastAccountId == acc.id) storage.lastAccountId = accounts.firstOrNull()?.id
     }
 
-    fun openAccount(acc: Account) {
+    /** Abre la pantalla de listas; con [add] abre directamente el diálogo para añadir una nueva. */
+    fun manageAccounts(add: Boolean = false) {
+        pendingAddAccount = add
+        if (stack.lastOrNull() !is Screen.Accounts) stack.add(Screen.Accounts)
+    }
+
+    fun consumeAddAccountRequest() {
+        pendingAddAccount = false
+    }
+
+    fun openAccount(acc: Account, fromLaunch: Boolean = false) {
         if (busy) return
         busy = true
         viewModelScope.launch {
@@ -153,6 +174,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 api = a
                 currentAccount = acc
                 authInfo = info
+                storage.lastAccountId = acc.id
                 live = Section()
                 movies = Section()
                 series = Section()
@@ -160,7 +182,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 favs.addAll(storage.loadFavs(acc.id))
                 recents.clear()
                 recents.addAll(storage.loadRecents(acc.id))
-                stack.add(Screen.Browse(acc.id))
+                when {
+                    // Arranque automático: la app queda directamente en la lista, sin cuentas detrás.
+                    fromLaunch -> {
+                        stack.clear()
+                        stack.add(Screen.Browse(acc.id))
+                    }
+                    // Primera lista añadida desde la pantalla de cuentas.
+                    stack.size == 1 -> stack.add(Screen.Browse(acc.id))
+                    // Cambio de lista: igual que al arrancar, queda solo la pantalla de contenido.
+                    else -> {
+                        stack.clear()
+                        stack.add(Screen.Browse(acc.id))
+                    }
+                }
             } catch (e: Exception) {
                 toast("No se pudo abrir la lista: ${errorText(e)}")
             }
