@@ -74,7 +74,8 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
-    // Solo iconos "core" (Star, Search, Refresh, PlayArrow...), sin material-icons-extended.
+    // Iconos del reproductor (Pause, Volumen, Subtítulos...). En release R8 deja solo los que se usan.
+    implementation("androidx.compose.material:material-icons-extended")
 
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
