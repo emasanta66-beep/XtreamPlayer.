@@ -8,6 +8,7 @@ import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.util.Rational
 import android.view.View
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -40,6 +41,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +55,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,12 +92,15 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import app.xtreamplayer.AppViewModel
 import app.xtreamplayer.data.Channel
+import app.xtreamplayer.data.DlnaClient
+import app.xtreamplayer.data.DlnaDevice
 import app.xtreamplayer.data.EpgItem
 import app.xtreamplayer.data.Episode
 import app.xtreamplayer.data.Http
 import app.xtreamplayer.data.PlayItem
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -164,6 +170,15 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var gearFound by remember { mutableStateOf(true) }
     // El menú se cierra cuando se ocultan los controles.
     LaunchedEffect(controlsVisible) { if (!controlsVisible) showMenu = false }
+
+    // Enviar películas y episodios a una TV DLNA (la mayoría de LG son compatibles).
+    val castScope = rememberCoroutineScope()
+    val dlna = remember(context) { DlnaClient(context.applicationContext) }
+    var showCast by remember { mutableStateOf(false) }
+    var castBusy by remember { mutableStateOf(false) }
+    var castDevice by remember { mutableStateOf<DlnaDevice?>(null) }
+    var castResumeAt by remember { mutableStateOf(0L) }
+    var castDurationMs by remember { mutableStateOf(0L) }
 
     // Tamaño de imagen y orientación (se conservan al cambiar de canal o capítulo).
     val videoMode = vm.videoMode.coerceIn(0, videoModes.lastIndex)
@@ -257,8 +272,12 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         onDispose {
             exoPlayer.removeListener(listener)
             val duration = exoPlayer.duration
-            if (item.resumeKey != null && duration != C.TIME_UNSET && duration > 0) {
-                vm.saveProgress(item, exoPlayer.currentPosition, duration)
+            val position = exoPlayer.currentPosition
+            // Si se está enviando a la TV, el reproductor local está detenido: no se pisa el avance guardado.
+            if (castDevice == null && !castBusy && item.resumeKey != null &&
+                duration != C.TIME_UNSET && duration > 0 && position > 0
+            ) {
+                vm.saveProgress(item, position, duration)
             }
             exoPlayer.release()
         }
@@ -336,6 +355,78 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         )
     }
 
+    fun sendToTv(device: DlnaDevice) {
+        if (castBusy) return
+        castBusy = true
+
+        val startAt = exoPlayer.currentPosition.takeIf { it > 0 } ?: item.startPositionMs
+        val duration = exoPlayer.duration.takeIf { it > 0 && it != C.TIME_UNSET } ?: 0L
+        castResumeAt = startAt
+        castDurationMs = duration
+
+        // Se detiene el reproductor local para liberar la conexión con el servidor
+        // (muchas listas permiten una sola conexión) antes de que la TV abra el archivo.
+        exoPlayer.stop()
+        if (item.resumeKey != null && duration > 0) {
+            vm.saveProgress(item, startAt, duration)
+        }
+
+        castScope.launch {
+            val result = dlna.cast(device, currentUrl, item.title)
+            castBusy = false
+            result.onSuccess {
+                castDevice = device
+                Toast.makeText(context, "Reproduciendo en ${device.name}", Toast.LENGTH_LONG).show()
+                // La TV no avisa a Android del minuto que lleva: se le pregunta cada 30 s.
+                castScope.launch {
+                    while (castDevice?.controlUrl == device.controlUrl) {
+                        delay(30_000)
+                        val info = dlna.position(device).getOrNull() ?: continue
+                        if (info.positionMs > 0) {
+                            val total = if (info.durationMs > 0) info.durationMs else castDurationMs
+                            if (total > 0) vm.saveProgress(item, info.positionMs, total)
+                        }
+                    }
+                }
+            }.onFailure {
+                // Si la TV falla, se vuelve a cargar en el teléfono en el mismo punto.
+                exoPlayer.setMediaItem(
+                    MediaItem.fromUri(currentUrl),
+                    if (startAt > 0) startAt else C.TIME_UNSET,
+                )
+                exoPlayer.prepare()
+                exoPlayer.play()
+                Toast.makeText(
+                    context,
+                    "No se pudo enviar a la TV. Comprueba que esté encendida y en la misma Wi-Fi.",
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+
+    fun stopCasting() {
+        val device = castDevice ?: return
+        castDevice = null
+        castScope.launch {
+            val info = dlna.position(device).getOrNull()
+            dlna.stop(device).onFailure {
+                Toast.makeText(context, "No se pudo detener la TV; usa su mando.", Toast.LENGTH_LONG).show()
+            }
+            val start = info?.positionMs?.takeIf { it > 0 } ?: castResumeAt
+            if (info != null && info.positionMs > 0) {
+                val total = if (info.durationMs > 0) info.durationMs else castDurationMs
+                if (total > 0) vm.saveProgress(item, info.positionMs, total)
+            }
+            exoPlayer.setMediaItem(
+                MediaItem.fromUri(currentUrl),
+                if (start > 0) start else C.TIME_UNSET,
+            )
+            exoPlayer.prepare()
+            exoPlayer.play()
+        }
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -373,14 +464,16 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 view.resizeMode = videoModes[videoMode].resizeMode
                 // Con el menú abierto los controles no se ocultan solos.
                 view.controllerShowTimeoutMs = if (showMenu) 0 else 5000
+                // Mientras la TV reproduce, el teléfono puede apagar la pantalla.
+                view.keepScreenOn = castDevice == null
                 // En la ventana pequeña no se muestran los controles de PlayerView.
-                view.useController = !inPip
-                if (inPip) view.hideController()
+                view.useController = !inPip && castDevice == null && !castBusy
+                if (inPip || castDevice != null || castBusy) view.hideController()
             },
         )
 
         AnimatedVisibility(
-            visible = controlsVisible && !inPip,
+            visible = controlsVisible && !inPip && castDevice == null && !castBusy,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopStart),
@@ -431,7 +524,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
 
         // Acciones del reproductor, encima de la barra de progreso de PlayerView.
         AnimatedVisibility(
-            visible = controlsVisible && !inPip && (showMenu || !gearFound),
+            visible = controlsVisible && !inPip && castDevice == null && !castBusy && (showMenu || !gearFound),
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
@@ -463,6 +556,17 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 }
                 TextButton(onClick = { vm.playerLandscape = !vm.playerLandscape }) {
                     Text(if (landscape) "Vertical" else "Horizontal", color = Color.White)
+                }
+                if (!item.isLive) {
+                    TextButton(
+                        onClick = {
+                            showMenu = false
+                            showCast = true
+                        },
+                        enabled = !castBusy,
+                    ) {
+                        Text(if (castBusy) "Enviando…" else "Enviar a TV", color = Color.White)
+                    }
                 }
                 if (supportsPip) {
                     TextButton(onClick = { enterPip() }) {
@@ -530,6 +634,73 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                             usingAlt = false
                             attempt++
                         }) { Text("Reintentar") }
+                        OutlinedButton(onClick = { vm.back() }) { Text("Volver") }
+                    }
+                }
+            }
+        }
+
+        if (showCast) {
+            CastDialog(
+                title = item.title,
+                onDismiss = { showCast = false },
+                onCast = { device -> sendToTv(device) },
+            )
+        }
+
+        if (castBusy && !inPip) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .background(Color(0xE6000000), RoundedCornerShape(12.dp))
+                    .pointerInput(Unit) { detectTapGestures { } }
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    strokeWidth = 3.dp,
+                )
+                Spacer(Modifier.height(12.dp))
+                Text("Enviando a TV…", color = Color.White)
+            }
+        }
+
+        // Mientras la TV reproduce, el teléfono queda como mando: se oculta el video local.
+        castDevice?.let { device ->
+            if (!inPip) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xF2000000))
+                        .displayCutoutPadding()
+                        .pointerInput(Unit) { detectTapGestures { } }
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        "Reproduciendo en TV",
+                        color = Color.White,
+                        style = MaterialTheme.typography.headlineSmall,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        device.name,
+                        color = Color(0xFFB3E5FC),
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Usa el mando de la TV para pausar o cambiar el volumen. Si vuelves atrás, la TV seguirá reproduciendo.",
+                        color = Color(0xCCFFFFFF),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(onClick = { stopCasting() }) { Text("Detener TV") }
                         OutlinedButton(onClick = { vm.back() }) { Text("Volver") }
                     }
                 }
