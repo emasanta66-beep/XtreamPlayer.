@@ -1,5 +1,6 @@
 package app.xtreamplayer
 
+import android.Manifest
 import android.app.PictureInPictureParams
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -11,7 +12,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import app.xtreamplayer.ui.AccountsScreen
 import app.xtreamplayer.ui.AppTheme
@@ -59,6 +64,14 @@ class MainActivity : ComponentActivity() {
 private fun Root(vm: AppViewModel) {
     val holder = rememberSaveableStateHolder()
     val screen = vm.stack.last()
+
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    if (vm.askNotifPermission) {
+        LaunchedEffect(Unit) {
+            vm.consumeNotifRequest()
+            if (Build.VERSION.SDK_INT >= 33) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     BackHandler(enabled = vm.stack.size > 1) { vm.back() }
 

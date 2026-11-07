@@ -84,6 +84,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
@@ -137,7 +138,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             .setEnableDecoderFallback(true)
         ExoPlayer.Builder(context, renderers)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(http))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, http)))
             .setSeekBackIncrementMs(10_000)
             .setSeekForwardIncrementMs(10_000)
             .build()
@@ -397,7 +398,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         }
 
         castScope.launch {
-            val result = dlna.cast(device, currentUrl, item.title)
+            val result = dlna.cast(device, item.remoteUrl ?: currentUrl, item.title)
             castBusy = false
             result.onSuccess {
                 castDevice = device

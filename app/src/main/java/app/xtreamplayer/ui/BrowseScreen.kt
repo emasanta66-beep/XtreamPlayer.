@@ -92,7 +92,7 @@ fun BrowseScreen(vm: AppViewModel) {
     var query by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    val titles = listOf("En vivo", "Películas", "Series", "Favoritos", "Continuar")
+    val titles = listOf("En vivo", "Películas", "Series", "Favoritos", "Continuar", "Descargas")
 
     LaunchedEffect(tab) {
         when (tab) {
@@ -221,7 +221,8 @@ fun BrowseScreen(vm: AppViewModel) {
             TAB_MOVIES -> MoviesTab(vm, query, modifier)
             TAB_SERIES -> SeriesTab(vm, query, modifier)
             TAB_FAVS -> FavTab(vm, query, modifier)
-            else -> ContinueTab(vm, query, modifier)
+            TAB_CONTINUE -> ContinueTab(vm, query, modifier)
+            else -> DownloadsTab(vm, query, modifier)
         }
     }
 }
@@ -231,6 +232,7 @@ private const val TAB_LIVE = 0
 private const val TAB_MOVIES = 1
 private const val TAB_SERIES = 2
 private const val TAB_FAVS = 3
+private const val TAB_CONTINUE = 4
 
 // ---------------------------------------------------------------- Pestañas
 
@@ -347,6 +349,14 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
                         fav = vm.isFav("movie", m.id),
                         onClick = { vm.playMovie(m.id, m.name, m.ext, m.icon) },
                         onFav = { vm.toggleFav(Fav("movie", m.id, m.name, m.icon, m.ext)) },
+                        download = {
+                            val key = vm.currentAccount?.let { "${it.id}:movie:${m.id}" }
+                            DownloadBadge(
+                                d = vm.downloads.firstOrNull { it.key == key },
+                                onStart = { vm.downloadMovie(m.id, m.name, m.ext, m.icon) },
+                                onToggle = { key?.let { vm.toggleDownload(it) } },
+                            )
+                        },
                     )
                 }
             }
@@ -585,7 +595,14 @@ private fun ListRow(
 }
 
 @Composable
-private fun Poster(title: String, image: String?, fav: Boolean, onClick: () -> Unit, onFav: () -> Unit) {
+private fun Poster(
+    title: String,
+    image: String?,
+    fav: Boolean,
+    onClick: () -> Unit,
+    onFav: () -> Unit,
+    download: (@Composable () -> Unit)? = null,
+) {
     Column(Modifier.clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
@@ -613,6 +630,9 @@ private fun Poster(title: String, image: String?, fav: Boolean, onClick: () -> U
                     tint = if (fav) Color(0xFFFF6B81) else Color.White,
                     modifier = Modifier.clickable(onClick = onFav).padding(6.dp).size(20.dp),
                 )
+            }
+            if (download != null) {
+                Box(Modifier.align(Alignment.BottomEnd).padding(4.dp)) { download() }
             }
         }
         Spacer(Modifier.height(6.dp))

@@ -32,6 +32,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -161,6 +162,14 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                             }
                         }
                     }
+                    if (episodes.isNotEmpty()) {
+                        item {
+                            OutlinedButton(
+                                onClick = { vm.downloadEpisodes(series, episodes) },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                            ) { Text("⬇  Descargar temporada $selected") }
+                        }
+                    }
                     items(episodes) { ep ->
                         val saved = vm.recents.firstOrNull { it.key == vm.episodeKey(ep) }
                         val progress = saved?.takeIf { it.durationMs > 0 }
@@ -202,6 +211,13 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                                     )
                                 }
                             }
+                            val epKey = vm.episodeKey(ep)
+                            DownloadBadge(
+                                d = vm.downloads.firstOrNull { it.key == epKey },
+                                onStart = { vm.downloadEpisodes(series, listOf(ep)) },
+                                onToggle = { epKey?.let { vm.toggleDownload(it) } },
+                                modifier = Modifier.padding(start = 8.dp),
+                            )
                         }
                     }
                     if (d.seasons.isEmpty()) {

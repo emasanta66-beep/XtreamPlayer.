@@ -1,7 +1,12 @@
 package app.xtreamplayer
 
 import android.app.Application
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -12,6 +17,9 @@ import app.xtreamplayer.data.Account
 import app.xtreamplayer.data.AuthInfo
 import app.xtreamplayer.data.Category
 import app.xtreamplayer.data.Channel
+import app.xtreamplayer.data.DlStatus
+import app.xtreamplayer.data.DownloadCenter
+import app.xtreamplayer.data.DownloadItem
 import app.xtreamplayer.data.Episode
 import app.xtreamplayer.data.EpgItem
 import app.xtreamplayer.data.Fav
@@ -90,7 +98,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var pendingAddAccount by mutableStateOf(false)
         private set
 
+    /** Descargas (películas y capítulos), compartidas por todas las listas. */
+    val downloads get() = DownloadCenter.items
+
+    /** La interfaz debe pedir el permiso de notificaciones (Android 13+). */
+    var askNotifPermission by mutableStateOf(false)
+        private set
+
     init {
+        DownloadCenter.init(app)
         // Si ya hay listas guardadas, entra directamente en la última usada (o en la primera).
         val last = storage.lastAccountId?.let { id -> accounts.firstOrNull { it.id == id } }
             ?: accounts.firstOrNull()
@@ -357,11 +373,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val acc = currentAccount ?: return
         val key = "${acc.id}:movie:$id"
         val extension = ext.ifEmpty { "mp4" }
+        val remote = a.movieUrl(id, extension)
+        val local = DownloadCenter.localFile(key)
         stack.add(
             Screen.Player(
                 PlayItem(
                     title = name,
-                    url = a.movieUrl(id, extension),
+                    url = local?.let { Uri.fromFile(it).toString() } ?: remote,
+                    remoteUrl = if (local != null) remote else null,
                     altUrl = null,
                     isLive = false,
                     streamId = null,
@@ -385,6 +404,88 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    // ---------- Descargas ----------
+    private fun requestNotifPermissionOnce() {
+        if (Build.VERSION.SDK_INT < 33) return
+        val granted = ContextCompat.checkSelfPermission(
+            getApplication<Application>(), Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted && !storage.notifAsked) {
+            storage.notifAsked = true
+            askNotifPermission = true
+        }
+    }
+
+    fun consumeNotifRequest() {
+        askNotifPermission = false
+    }
+
+    fun downloadMovie(id: Int, name: String, ext: String, image: String?) {
+        val a = api ?: return
+        val acc = currentAccount ?: return
+        val extension = ext.ifEmpty { "mp4" }
+        val key = "${acc.id}:movie:$id"
+        enqueueDownload(
+            DownloadItem(
+                key = key, accountId = acc.id, kind = "movie", title = name, subtitle = "",
+                image = image, url = a.movieUrl(id, extension), ext = extension,
+                contentId = id.toString(), seriesId = 0,
+                file = DownloadCenter.fileNameFor(key, extension),
+                status = DlStatus.QUEUED, bytes = 0L, total = 0L,
+            )
+        )
+    }
+
+    private fun episodeDownload(series: Series, ep: Episode): DownloadItem? {
+        val a = api ?: return null
+        val acc = currentAccount ?: return null
+        val key = episodeKey(ep) ?: return null
+        val ext = ep.ext.ifEmpty { "mp4" }
+        return DownloadItem(
+            key = key, accountId = acc.id, kind = "episode", title = series.name,
+            subtitle = "T${ep.season}E${ep.number}", image = ep.image ?: series.cover,
+            url = a.episodeUrl(ep.id, ext), ext = ext, contentId = ep.id, seriesId = series.id,
+            file = DownloadCenter.fileNameFor(key, ext),
+            status = DlStatus.QUEUED, bytes = 0L, total = 0L,
+        )
+    }
+
+    fun downloadEpisodes(series: Series, eps: List<Episode>) {
+        val list = eps.mapNotNull { episodeDownload(series, it) }
+        if (list.isEmpty()) return
+        requestNotifPermissionOnce()
+        list.forEach { DownloadCenter.enqueue(it) }
+        toast(if (list.size == 1) "Descargando…" else "Descargando ${list.size} capítulos")
+    }
+
+    private fun enqueueDownload(item: DownloadItem) {
+        requestNotifPermissionOnce()
+        DownloadCenter.enqueue(item)
+        toast("Descargando…")
+    }
+
+    /** Toca el botón de descarga de algo que ya está en la cola: pausa o reanuda. */
+    fun toggleDownload(key: String) {
+        val d = DownloadCenter.find(key) ?: return
+        when (d.status) {
+            DlStatus.QUEUED, DlStatus.DOWNLOADING -> DownloadCenter.pause(key)
+            DlStatus.PAUSED, DlStatus.ERROR -> DownloadCenter.resume(key)
+            DlStatus.DONE -> {}
+        }
+    }
+
+    fun deleteDownload(key: String) = DownloadCenter.remove(key)
+
+    fun playDownload(d: DownloadItem) {
+        playRecent(
+            Recent(
+                key = d.key, kind = d.kind, contentId = d.contentId, title = d.title,
+                subtitle = d.subtitle, image = d.image, ext = d.ext, seriesId = d.seriesId,
+                positionMs = 0L, durationMs = 0L, updatedAt = 0L,
+            )
+        )
+    }
+
     fun openSeries(s: Series) {
         stack.add(Screen.SeriesPage(s))
     }
@@ -400,10 +501,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val a = api ?: return null
         val key = episodeKey(ep) ?: return null
         val label = "T${ep.season}E${ep.number}"
+        val remote = a.episodeUrl(ep.id, ep.ext)
+        val local = DownloadCenter.localFile(key)
         return Screen.Player(
             PlayItem(
                 title = "${series.name} · $label",
-                url = a.episodeUrl(ep.id, ep.ext),
+                url = local?.let { Uri.fromFile(it).toString() } ?: remote,
+                remoteUrl = if (local != null) remote else null,
                 altUrl = null,
                 isLive = false,
                 streamId = null,
@@ -452,16 +556,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun playRecent(r: Recent) {
         val a = api ?: return
         val ext = r.ext.ifEmpty { "mp4" }
-        val url = if (r.kind == "movie") {
+        val remote = if (r.kind == "movie") {
             a.movieUrl(r.contentId.toIntOrNull() ?: return, ext)
         } else {
             a.episodeUrl(r.contentId, ext)
         }
+        val local = DownloadCenter.localFile(r.key)
+        val url = local?.let { Uri.fromFile(it).toString() } ?: remote
         stack.add(
             Screen.Player(
                 PlayItem(
                     title = if (r.subtitle.isEmpty()) r.title else "${r.title} · ${r.subtitle}",
                     url = url,
+                    remoteUrl = if (local != null) remote else null,
                     altUrl = null,
                     isLive = false,
                     streamId = null,

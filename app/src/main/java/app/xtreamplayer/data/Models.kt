@@ -86,6 +86,8 @@ data class PlayItem(
     val startPositionMs: Long,
     /** Datos para listar este contenido en "Continuar viendo" (películas y episodios). */
     val recent: Recent? = null,
+    /** Dirección en línea cuando `url` es un archivo descargado (para enviar a la TV). */
+    val remoteUrl: String? = null,
 )
 
 /** Elemento de "Continuar viendo". kind: "movie" | "episode". */

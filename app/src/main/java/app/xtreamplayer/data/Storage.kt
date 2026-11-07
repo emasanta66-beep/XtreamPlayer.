@@ -127,6 +127,62 @@ class Storage(context: Context) {
         prefs.edit().putString("catorder_${section}_$accountId", arr.toString()).apply()
     }
 
+    /** Descargas (películas y capítulos) de todas las listas. */
+    fun loadDownloads(): List<DownloadItem> = try {
+        val arr = JSONArray(prefs.getString("downloads", "[]"))
+        List(arr.length()) { i ->
+            val o = arr.getJSONObject(i)
+            DownloadItem(
+                key = o.getString("key"),
+                accountId = o.getString("accountId"),
+                kind = o.getString("kind"),
+                title = o.getString("title"),
+                subtitle = o.optString("subtitle", ""),
+                image = o.optString("image", "").ifEmpty { null },
+                url = o.getString("url"),
+                ext = o.optString("ext", "mp4"),
+                contentId = o.getString("contentId"),
+                seriesId = o.optInt("seriesId", 0),
+                file = o.getString("file"),
+                status = try {
+                    DlStatus.valueOf(o.getString("status"))
+                } catch (e: Exception) {
+                    DlStatus.PAUSED
+                },
+                bytes = o.optLong("bytes", 0L),
+                total = o.optLong("total", 0L),
+                error = o.optString("error", "").ifEmpty { null },
+            )
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    fun saveDownloads(list: List<DownloadItem>) {
+        val arr = JSONArray()
+        list.forEach { d ->
+            arr.put(
+                JSONObject()
+                    .put("key", d.key)
+                    .put("accountId", d.accountId)
+                    .put("kind", d.kind)
+                    .put("title", d.title)
+                    .put("subtitle", d.subtitle)
+                    .put("image", d.image ?: "")
+                    .put("url", d.url)
+                    .put("ext", d.ext)
+                    .put("contentId", d.contentId)
+                    .put("seriesId", d.seriesId)
+                    .put("file", d.file)
+                    .put("status", d.status.name)
+                    .put("bytes", d.bytes)
+                    .put("total", d.total)
+                    .put("error", d.error ?: "")
+            )
+        }
+        prefs.edit().putString("downloads", arr.toString()).apply()
+    }
+
     fun getPosition(key: String): Long = prefs.getLong("pos_$key", 0L)
 
     fun setPosition(key: String, ms: Long) {
@@ -134,6 +190,13 @@ class Storage(context: Context) {
         if (ms > 0) editor.putLong("pos_$key", ms) else editor.remove("pos_$key")
         editor.apply()
     }
+
+    /** Si ya se pidió el permiso de notificaciones (solo se pide una vez). */
+    var notifAsked: Boolean
+        get() = prefs.getBoolean("notif_asked", false)
+        set(value) {
+            prefs.edit().putBoolean("notif_asked", value).apply()
+        }
 
     /** Tamaño de imagen elegido en el reproductor (posición en la lista de modos). */
     var videoMode: Int
