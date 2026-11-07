@@ -73,13 +73,9 @@ import androidx.core.util.Consumer
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.media3.cast.CastPlayer
-import androidx.media3.cast.SessionAvailabilityListener
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -91,7 +87,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.mediarouter.app.MediaRouteButton
 import app.xtreamplayer.AppViewModel
 import app.xtreamplayer.data.Channel
 import app.xtreamplayer.data.EpgItem
@@ -99,8 +94,6 @@ import app.xtreamplayer.data.Episode
 import app.xtreamplayer.data.Http
 import app.xtreamplayer.data.PlayItem
 import coil.compose.AsyncImage
-import com.google.android.gms.cast.framework.CastButtonFactory
-import com.google.android.gms.cast.framework.CastContext
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -145,47 +138,6 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             .apply { playWhenReady = true }
     }
 
-    // Transmisión a la TV (Chromecast). castPlayer es null si el celular no tiene servicios de Google.
-    val castPlayer = remember {
-        try {
-            CastPlayer(CastContext.getSharedInstance(context.applicationContext))
-        } catch (e: Exception) {
-            null
-        }
-    }
-    var casting by remember { mutableStateOf(castPlayer?.isCastSessionAvailable == true) }
-    // Posición desde la que sigue el contenido al pasar de la TV al celular o al revés (solo películas y series).
-    var resumeAtMs by remember { mutableStateOf<Long?>(null) }
-    DisposableEffect(castPlayer) {
-        val cp = castPlayer
-        val castErrors = object : Player.Listener {
-            override fun onPlayerError(e: PlaybackException) {
-                error = "No se pudo reproducir en la TV (${e.errorCodeName})."
-            }
-        }
-        cp?.addListener(castErrors)
-        cp?.setSessionAvailabilityListener(object : SessionAvailabilityListener {
-            override fun onCastSessionAvailable() {
-                resumeAtMs = if (item.isLive) null else exoPlayer.currentPosition
-                casting = true
-            }
-
-            override fun onCastSessionUnavailable() {
-                resumeAtMs = if (item.isLive) null else cp?.currentPosition
-                casting = false
-            }
-        })
-        onDispose {
-            cp?.removeListener(castErrors)
-            cp?.setSessionAvailabilityListener(null)
-            if (cp != null) {
-                // Al salir del reproductor (o cambiar de canal) se detiene la TV; el nuevo reproductor la retoma.
-                if (cp.isCastSessionAvailable) cp.stop()
-                cp.release()
-            }
-        }
-    }
-
     // Pistas de audio y subtítulos disponibles (se actualizan cuando el reproductor las descubre).
     var tracks by remember { mutableStateOf(exoPlayer.currentTracks) }
     val audioOptions = remember(tracks) { tracks.options(C.TRACK_TYPE_AUDIO) }
@@ -212,17 +164,13 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var gearFound by remember { mutableStateOf(true) }
     // El menú se cierra cuando se ocultan los controles.
     LaunchedEffect(controlsVisible) { if (!controlsVisible) showMenu = false }
-    // Botón de Cast del sistema; se abre desde la opción "Enviar a TV" del menú.
-    val routeButton = remember { arrayOfNulls<MediaRouteButton>(1) }
 
     // Tamaño de imagen y orientación (se conservan al cambiar de canal o capítulo).
     val videoMode = vm.videoMode.coerceIn(0, videoModes.lastIndex)
     val landscape = vm.playerLandscape
 
     // Player que ve la barra de controles: ⏭ pasa al capítulo o canal siguiente, y en vivo ⏮ al canal anterior.
-    // Los controles mandan al reproductor del celular o, si se está transmitiendo, al de la TV.
-    val activePlayer: Player = if (casting && castPlayer != null) castPlayer else exoPlayer
-    val controlsPlayer = remember(activePlayer, nextEpisode, nextChannel, prevChannel, item) {
+    val controlsPlayer = remember(exoPlayer, nextEpisode, nextChannel, prevChannel, item) {
         val nextEp = nextEpisode
         val onNext: (() -> Unit)? = when {
             nextChannel != null -> ({ vm.switchChannel(nextChannel) })
@@ -230,7 +178,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             else -> null
         }
         val onPrev: (() -> Unit)? = prevChannel?.let { ch -> ({ vm.switchChannel(ch) }) }
-        object : ForwardingPlayer(activePlayer) {
+        object : ForwardingPlayer(exoPlayer) {
             override fun getAvailableCommands(): Player.Commands {
                 val builder = super.getAvailableCommands().buildUpon()
                 if (onNext != null) {
@@ -277,22 +225,12 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
 
     // Carga (o recarga) el contenido cuando cambia la URL o se pulsa "Reintentar".
     val currentUrl = if (usingAlt) item.altUrl ?: item.url else item.url
-    LaunchedEffect(currentUrl, attempt, casting) {
+    LaunchedEffect(currentUrl, attempt) {
         error = null
-        val start = resumeAtMs ?: if (item.isLive || attempt > 0) 0L else item.startPositionMs
-        resumeAtMs = null
-        val position = if (start > 0) start else C.TIME_UNSET
-        if (casting && castPlayer != null) {
-            // En la TV: el celular deja de reproducir y la TV carga el mismo contenido.
-            exoPlayer.stop()
-            castPlayer.setMediaItem(castMediaItem(currentUrl, item), position)
-            castPlayer.prepare()
-            castPlayer.play()
-        } else {
-            exoPlayer.setMediaItem(MediaItem.fromUri(currentUrl), position)
-            exoPlayer.prepare()
-            exoPlayer.play()
-        }
+        val start = if (item.isLive || attempt > 0) 0L else item.startPositionMs
+        exoPlayer.setMediaItem(MediaItem.fromUri(currentUrl), if (start > 0) start else C.TIME_UNSET)
+        exoPlayer.prepare()
+        exoPlayer.play()
     }
 
     // Errores: primero se prueba el formato alternativo (en vivo), luego se muestra el error.
@@ -491,31 +429,6 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             }
         }
 
-        // Botón de Cast del sistema, invisible: solo sirve para abrir el selector de dispositivos.
-        if (castPlayer != null) {
-            AndroidView(
-                modifier = Modifier.align(Alignment.BottomEnd).size(1.dp),
-                factory = { ctx ->
-                    MediaRouteButton(ctx).also { button ->
-                        CastButtonFactory.setUpMediaRouteButton(ctx.applicationContext, button)
-                        routeButton[0] = button
-                    }
-                },
-            )
-        }
-
-        if (casting && !inPip) {
-            Text(
-                "Reproduciendo en la TV",
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .background(Color(0x99000000), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-        }
-
         // Acciones del reproductor, encima de la barra de progreso de PlayerView.
         AnimatedVisibility(
             visible = controlsVisible && !inPip && (showMenu || !gearFound),
@@ -550,11 +463,6 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 }
                 TextButton(onClick = { vm.playerLandscape = !vm.playerLandscape }) {
                     Text(if (landscape) "Vertical" else "Horizontal", color = Color.White)
-                }
-                if (castPlayer != null) {
-                    TextButton(onClick = { routeButton[0]?.performClick() }) {
-                        Text(if (casting) "TV: conectada" else "Enviar a TV", color = Color.White)
-                    }
                 }
                 if (supportsPip) {
                     TextButton(onClick = { enterPip() }) {
@@ -628,27 +536,6 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             }
         }
     }
-}
-
-/** Contenido para la TV: el receptor de Google necesita saber el tipo de archivo; en vivo prefiere HLS (.m3u8). */
-private fun castMediaItem(url: String, item: PlayItem): MediaItem {
-    val castUrl = if (item.isLive && !url.contains(".m3u8", ignoreCase = true)) {
-        listOfNotNull(item.url, item.altUrl).firstOrNull { it.contains(".m3u8", ignoreCase = true) } ?: url
-    } else {
-        url
-    }
-    val mime = when {
-        castUrl.contains(".m3u8", ignoreCase = true) -> MimeTypes.APPLICATION_M3U8
-        castUrl.endsWith(".ts", ignoreCase = true) -> MimeTypes.VIDEO_MP2T
-        castUrl.endsWith(".mkv", ignoreCase = true) -> MimeTypes.VIDEO_MATROSKA
-        castUrl.endsWith(".webm", ignoreCase = true) -> MimeTypes.VIDEO_WEBM
-        else -> MimeTypes.VIDEO_MP4
-    }
-    return MediaItem.Builder()
-        .setUri(castUrl)
-        .setMimeType(mime)
-        .setMediaMetadata(MediaMetadata.Builder().setTitle(item.title).build())
-        .build()
 }
 
 /** Tamaños de imagen del reproductor; el botón "Imagen" recorre esta lista. */

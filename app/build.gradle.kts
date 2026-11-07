@@ -75,11 +75,6 @@ dependencies {
     // Decodificador de audio por software (AC3, E-AC3, DTS, TrueHD, MP2...) para lo que el celular no sabe reproducir.
     implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1")
 
-    // Transmitir a la TV (Chromecast). AppCompat aporta FragmentActivity y los temas del diálogo de dispositivos.
-    implementation("androidx.media3:media3-cast:1.5.1")
-    implementation("androidx.mediarouter:mediarouter:1.7.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
