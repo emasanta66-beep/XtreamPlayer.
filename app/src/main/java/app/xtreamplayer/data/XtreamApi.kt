@@ -1,6 +1,8 @@
 package app.xtreamplayer.data
 
 import android.util.Base64
+import android.util.JsonReader
+import android.util.JsonToken
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -8,6 +10,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.EOFException
 import java.io.IOException
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
@@ -81,65 +84,120 @@ class XtreamApi(private val acc: Account) {
         return out
     }
 
-    fun liveStreams(): List<Channel> {
-        val arr = parseArray(get(url("get_live_streams")))
-        val out = ArrayList<Channel>(arr.length())
-        for (i in 0 until arr.length()) {
-            val o = arr.optJSONObject(i) ?: continue
-            val id = o.optInt("stream_id", -1)
-            if (id < 0) continue
-            out.add(
-                Channel(
-                    id = id,
-                    name = o.str("name") ?: "Canal $id",
-                    icon = o.str("stream_icon"),
-                    categoryId = o.str("category_id") ?: "",
-                )
+    // Las listas completas pueden tener decenas de miles de elementos (y varios MB de JSON). Se leen
+    // en streaming: nunca se carga todo el texto en memoria y solo se guardan los campos que la app usa.
+
+    fun liveStreams(): List<Channel> =
+        streamList("get_live_streams", setOf("stream_id", "name", "stream_icon", "category_id")) { f ->
+            val id = f.intOf("stream_id") ?: return@streamList null
+            Channel(
+                id = id,
+                name = f["name"] ?: "Canal $id",
+                icon = f["stream_icon"],
+                categoryId = f["category_id"] ?: "",
             )
         }
-        return out
+
+    fun vodStreams(): List<Movie> =
+        streamList(
+            "get_vod_streams",
+            setOf("stream_id", "name", "stream_icon", "category_id", "container_extension", "rating"),
+        ) { f ->
+            val id = f.intOf("stream_id") ?: return@streamList null
+            Movie(
+                id = id,
+                name = f["name"] ?: "Película $id",
+                icon = f["stream_icon"],
+                categoryId = f["category_id"] ?: "",
+                ext = f["container_extension"] ?: "mp4",
+                rating = f["rating"],
+            )
+        }
+
+    fun seriesList(): List<Series> =
+        streamList("get_series", setOf("series_id", "name", "cover", "category_id", "plot", "rating")) { f ->
+            val id = f.intOf("series_id") ?: return@streamList null
+            Series(
+                id = id,
+                name = f["name"] ?: "Serie $id",
+                cover = f["cover"],
+                categoryId = f["category_id"] ?: "",
+                // La sinopsis completa se pide al abrir la serie; aquí basta un resumen (ahorra mucha memoria).
+                plot = f["plot"]?.take(PLOT_PREVIEW_CHARS),
+                rating = f["rating"],
+            )
+        }
+
+    /**
+     * Descarga `action` y lo lee como un array JSON de objetos, uno a uno. De cada objeto solo se conservan
+     * los campos de [keys]; el resto se salta sin crear textos. [build] devuelve null para descartar un elemento.
+     */
+    private fun <T> streamList(
+        action: String,
+        keys: Set<String>,
+        build: (Map<String, String>) -> T?,
+    ): List<T> {
+        val req = Request.Builder().url(url(action)).header("User-Agent", Http.UA).build()
+        return Http.client.newCall(req).execute().use { r ->
+            if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
+            val body = r.body ?: throw IOException("Respuesta vacía")
+            JsonReader(body.charStream().buffered(64 * 1024)).use { reader ->
+                reader.isLenient = true
+                // Si el servidor no devuelve un array (vacío, error, HTML...), la lista queda vacía.
+                val first = try {
+                    reader.peek()
+                } catch (e: EOFException) {
+                    return emptyList()
+                }
+                if (first != JsonToken.BEGIN_ARRAY) return emptyList()
+
+                // Los ids de categoría y las extensiones se repiten miles de veces: se comparte un solo String.
+                val shared = HashMap<String, String>()
+                val out = ArrayList<T>()
+                reader.beginArray()
+                while (reader.hasNext()) {
+                    if (reader.peek() != JsonToken.BEGIN_OBJECT) {
+                        reader.skipValue()
+                        continue
+                    }
+                    val fields = HashMap<String, String>(8)
+                    reader.beginObject()
+                    while (reader.hasNext()) {
+                        val name = reader.nextName()
+                        if (name !in keys) {
+                            reader.skipValue()
+                            continue
+                        }
+                        val value = when (reader.peek()) {
+                            JsonToken.STRING, JsonToken.NUMBER -> reader.nextString()
+                            JsonToken.BOOLEAN -> reader.nextBoolean().toString()
+                            JsonToken.NULL -> {
+                                reader.nextNull()
+                                null
+                            }
+                            else -> {
+                                reader.skipValue()
+                                null
+                            }
+                        }
+                        if (value.isNullOrBlank()) continue
+                        fields[name] = if (name in SHARED_KEYS) shared.getOrPut(value) { value } else value
+                    }
+                    reader.endObject()
+                    build(fields)?.let { out.add(it) }
+                }
+                reader.endArray()
+                out.trimToSize()
+                out
+            }
+        }
     }
 
-    fun vodStreams(): List<Movie> {
-        val arr = parseArray(get(url("get_vod_streams")))
-        val out = ArrayList<Movie>(arr.length())
-        for (i in 0 until arr.length()) {
-            val o = arr.optJSONObject(i) ?: continue
-            val id = o.optInt("stream_id", -1)
-            if (id < 0) continue
-            out.add(
-                Movie(
-                    id = id,
-                    name = o.str("name") ?: "Película $id",
-                    icon = o.str("stream_icon"),
-                    categoryId = o.str("category_id") ?: "",
-                    ext = o.str("container_extension") ?: "mp4",
-                    rating = o.str("rating"),
-                )
-            )
-        }
-        return out
-    }
-
-    fun seriesList(): List<Series> {
-        val arr = parseArray(get(url("get_series")))
-        val out = ArrayList<Series>(arr.length())
-        for (i in 0 until arr.length()) {
-            val o = arr.optJSONObject(i) ?: continue
-            val id = o.optInt("series_id", -1)
-            if (id < 0) continue
-            out.add(
-                Series(
-                    id = id,
-                    name = o.str("name") ?: "Serie $id",
-                    cover = o.str("cover"),
-                    categoryId = o.str("category_id") ?: "",
-                    plot = o.str("plot"),
-                    rating = o.str("rating"),
-                )
-            )
-        }
-        return out
+    /** Entero de un campo (acepta "123" o "123.0"); null si falta o no es numérico. */
+    private fun Map<String, String>.intOf(key: String): Int? {
+        val v = this[key] ?: return null
+        val n = v.toIntOrNull() ?: v.toDoubleOrNull()?.toInt() ?: return null
+        return if (n >= 0) n else null
     }
 
     fun seriesInfo(seriesId: Int): SeriesDetail {
@@ -228,6 +286,9 @@ class XtreamApi(private val acc: Account) {
     }
 
     companion object {
+        private const val PLOT_PREVIEW_CHARS = 400
+        private val SHARED_KEYS = setOf("category_id", "container_extension")
+
         /** Deja solo "http(s)://host:puerto[/ruta]" sin barra final ni get.php/player_api.php. */
         fun normalize(raw: String): String {
             var s = raw.trim()
