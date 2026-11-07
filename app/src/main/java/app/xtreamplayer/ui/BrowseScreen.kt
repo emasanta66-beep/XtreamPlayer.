@@ -29,7 +29,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
@@ -145,11 +144,6 @@ fun BrowseScreen(vm: AppViewModel) {
                                     )
                                 }
                             }
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { vm.back() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                         }
                     },
                     actions = {
