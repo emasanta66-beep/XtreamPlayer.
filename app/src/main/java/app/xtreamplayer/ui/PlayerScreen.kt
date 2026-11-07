@@ -248,6 +248,18 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         exoPlayer.play()
     }
 
+    // Al terminar un capítulo pasa solo al siguiente. Si todavía no se conocía cuál es
+    // (por ejemplo, falló la carga de la serie), lo busca en ese momento.
+    var advancing by remember { mutableStateOf(false) }
+    fun advanceToNextEpisode() {
+        if (advancing || item.isLive) return
+        advancing = true
+        castScope.launch {
+            val next = nextEpisode ?: vm.nextEpisode(item)
+            if (next != null) vm.playNextEpisode(item, next) else advancing = false
+        }
+    }
+
     // Errores: primero se prueba el formato alternativo (en vivo), luego se muestra el error.
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
@@ -255,10 +267,23 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 tracks = newTracks
             }
 
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) advanceToNextEpisode()
+            }
+
             override fun onPlayerError(e: PlaybackException) {
                 if (e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                     exoPlayer.seekToDefaultPosition()
                     exoPlayer.prepare()
+                    return
+                }
+                // Algunos servidores cortan la conexión justo al final del archivo: si ya casi
+                // terminaba y hay capítulo siguiente, se sigue en vez de mostrar un error.
+                val total = exoPlayer.duration
+                if (!item.isLive && nextEpisode != null && total != C.TIME_UNSET && total > 0 &&
+                    exoPlayer.currentPosition >= total - 15_000
+                ) {
+                    advanceToNextEpisode()
                     return
                 }
                 if (item.isLive && item.altUrl != null && !usingAlt) {
