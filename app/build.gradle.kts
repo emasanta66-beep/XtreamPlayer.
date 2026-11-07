@@ -16,6 +16,10 @@ android {
         val buildNumber = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 1
         versionCode = buildNumber
         versionName = "1.$buildNumber"
+        // Solo celulares ARM (64 y 32 bits). x86/x86_64 son para emuladores y duplican el peso del decodificador ffmpeg.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        // La app solo está traducida al español; se descartan los idiomas sobrantes de las librerías.
+        resourceConfigurations += listOf("es", "en")
     }
 
     // Llave fija (viene de los secrets de GitHub) para que las actualizaciones se puedan instalar encima.
@@ -33,7 +37,10 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8: elimina el código y los recursos que la app no usa (el código pasa de ~25 MB a una fracción).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (keystorePath != null) {
                 signingConfigs.getByName("release")
             } else {
