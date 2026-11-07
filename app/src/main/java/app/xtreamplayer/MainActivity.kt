@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Rational
+import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -12,7 +13,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import androidx.fragment.app.FragmentActivity
 import app.xtreamplayer.ui.AccountsScreen
 import app.xtreamplayer.ui.AppTheme
 import app.xtreamplayer.ui.BrowseScreen
@@ -20,8 +20,7 @@ import app.xtreamplayer.ui.PlayerScreen
 import app.xtreamplayer.ui.SeriesScreen
 import app.xtreamplayer.ui.UpdateDialog
 
-// FragmentActivity (sigue siendo una ComponentActivity): el diálogo para elegir la TV es un fragmento.
-class MainActivity : FragmentActivity() {
+class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
