@@ -302,7 +302,10 @@ private fun LiveTab(vm: AppViewModel, query: String, modifier: Modifier) {
         )
     }
     SectionHost(s, modifier, onRetry = { vm.ensureLive(true) }) {
-        CategoryRow(s.cats, s.selectedCat, onReorder = { ordering = true }) { s.selectedCat = it }
+        CategoryRow(s.cats, s.selectedCat, onReorder = { ordering = true }) {
+            s.catChosen = true
+            s.selectedCat = it
+        }
         val list = remember(s.items, s.selectedCat, query) {
             filterBy(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
         }
@@ -328,7 +331,10 @@ private fun LiveTab(vm: AppViewModel, query: String, modifier: Modifier) {
 private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
     val s = vm.movies
     SectionHost(s, modifier, onRetry = { vm.ensureMovies(true) }) {
-        CategoryRow(s.cats, s.selectedCat) { s.selectedCat = it }
+        CategoryRow(s.cats, s.selectedCat) {
+            s.catChosen = true
+            s.selectedCat = it
+        }
         val list = remember(s.items, s.selectedCat, query) {
             filterBy(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
         }
@@ -368,7 +374,10 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
 private fun SeriesTab(vm: AppViewModel, query: String, modifier: Modifier) {
     val s = vm.series
     SectionHost(s, modifier, onRetry = { vm.ensureSeries(true) }) {
-        CategoryRow(s.cats, s.selectedCat) { s.selectedCat = it }
+        CategoryRow(s.cats, s.selectedCat) {
+            s.catChosen = true
+            s.selectedCat = it
+        }
         val list = remember(s.items, s.selectedCat, query) {
             filterBy(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
         }

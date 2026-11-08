@@ -68,6 +68,9 @@ class Section<T> {
     var loaded by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
     var selectedCat by mutableStateOf<String?>(null)
+
+    /** Verdadero cuando ya se eligió categoría (o "Todos") a mano: no se vuelve a forzar la primera. */
+    var catChosen = false
 }
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -263,6 +266,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     cats
                 }
                 section.items = items
+                // Abre en la primera categoría (no en "Todos") para que cargue rápido.
+                if (section.selectedCat == null && !section.catChosen) {
+                    section.selectedCat = section.cats.firstOrNull()?.id
+                }
                 section.loaded = true
             } catch (e: OutOfMemoryError) {
                 section.error = "La lista es demasiado grande para la memoria del teléfono"
