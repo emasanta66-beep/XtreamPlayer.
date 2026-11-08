@@ -36,6 +36,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -83,6 +95,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -166,11 +179,24 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         if (channelIndex >= 0 && channels.size > 1) channels[(channelIndex - 1 + channels.size) % channels.size] else null
     var showChannels by remember { mutableStateOf(false) }
 
-    // Menú de opciones (Audio y subs, Velocidad, Canales, Imagen...): solo aparece al tocar el engranaje.
+    // Menú ⋮ (arriba a la derecha), calidad y estado de los controles propios.
     var showMenu by remember { mutableStateOf(false) }
-    var gearFound by remember { mutableStateOf(true) }
-    // El menú se cierra cuando se ocultan los controles.
-    LaunchedEffect(controlsVisible) { if (!controlsVisible) showMenu = false }
+    var showQuality by remember { mutableStateOf(false) }
+    var qualityAuto by remember { mutableStateOf(true) }
+    var muted by remember { mutableStateOf(false) }
+    var isPlaying by remember { mutableStateOf(false) }
+    var buffering by remember { mutableStateOf(true) }
+    var videoW by remember { mutableIntStateOf(0) }
+    var videoH by remember { mutableIntStateOf(0) }
+    var positionMs by remember { mutableStateOf(0L) }
+    var durationMs by remember { mutableStateOf(0L) }
+    var seeking by remember { mutableStateOf(false) }
+    var seekValue by remember { mutableStateOf(0f) }
+    var pokes by remember { mutableIntStateOf(0) }
+    fun poke() {
+        pokes++
+    }
+    val qualityOptions = remember(tracks) { tracks.qualityOptions() }
 
     // Enviar películas y episodios a una TV DLNA (la mayoría de LG son compatibles).
     val castScope = rememberCoroutineScope()
@@ -185,52 +211,29 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     val videoMode = vm.videoMode.coerceIn(0, videoModes.lastIndex)
     val landscape = vm.playerLandscape
 
-    // Player que ve la barra de controles: ⏭ pasa al capítulo o canal siguiente, y en vivo ⏮ al canal anterior.
-    val controlsPlayer = remember(exoPlayer, nextEpisode, nextChannel, prevChannel, item) {
-        val nextEp = nextEpisode
-        val onNext: (() -> Unit)? = when {
-            nextChannel != null -> ({ vm.switchChannel(nextChannel) })
-            nextEp != null -> ({ vm.playNextEpisode(item, nextEp) })
-            else -> null
+    // ⏭ pasa al canal o capítulo siguiente; en vivo, ⏮ al canal anterior.
+    fun seekBy(deltaMs: Long) {
+        val d = exoPlayer.duration
+        val t = exoPlayer.currentPosition + deltaMs
+        exoPlayer.seekTo(if (d != C.TIME_UNSET && d > 0) t.coerceIn(0L, d) else t.coerceAtLeast(0L))
+        poke()
+    }
+
+    // Controles propios: se ocultan solos a los 4 s mientras se reproduce.
+    LaunchedEffect(controlsVisible, isPlaying, showMenu, showTracks, showQuality, pokes) {
+        if (controlsVisible && isPlaying && !showMenu && !showTracks && !showQuality) {
+            delay(4000)
+            controlsVisible = false
         }
-        val onPrev: (() -> Unit)? = prevChannel?.let { ch -> ({ vm.switchChannel(ch) }) }
-        object : ForwardingPlayer(exoPlayer) {
-            override fun getAvailableCommands(): Player.Commands {
-                val builder = super.getAvailableCommands().buildUpon()
-                if (onNext != null) {
-                    builder.add(Player.COMMAND_SEEK_TO_NEXT)
-                    builder.add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
-                } else {
-                    builder.remove(Player.COMMAND_SEEK_TO_NEXT)
-                    builder.remove(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
-                }
-                if (onPrev != null) {
-                    builder.add(Player.COMMAND_SEEK_TO_PREVIOUS)
-                    builder.add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
-                }
-                return builder.build()
-            }
-
-            override fun isCommandAvailable(command: Int): Boolean =
-                getAvailableCommands().contains(command)
-
-            override fun hasNextMediaItem(): Boolean = onNext != null
-
-            override fun seekToNext() {
-                onNext?.invoke()
-            }
-
-            override fun seekToNextMediaItem() = seekToNext()
-
-            override fun hasPreviousMediaItem(): Boolean = onPrev != null || super.hasPreviousMediaItem()
-
-            override fun seekToPrevious() {
-                if (onPrev != null) onPrev.invoke() else super.seekToPrevious()
-            }
-
-            override fun seekToPreviousMediaItem() {
-                if (onPrev != null) onPrev.invoke() else super.seekToPreviousMediaItem()
-            }
+    }
+    val showOverlay = controlsVisible && !inPip && castDevice == null && !castBusy
+    LaunchedEffect(showOverlay) {
+        if (!showOverlay) return@LaunchedEffect
+        while (true) {
+            if (!seeking) positionMs = exoPlayer.currentPosition
+            val d = exoPlayer.duration
+            durationMs = if (d == C.TIME_UNSET) 0L else d
+            delay(500)
         }
     }
 
@@ -269,7 +272,17 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
+                buffering = playbackState == Player.STATE_BUFFERING
                 if (playbackState == Player.STATE_ENDED) advanceToNextEpisode()
+            }
+
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+
+            override fun onVideoSizeChanged(size: VideoSize) {
+                videoW = size.width
+                videoH = size.height
             }
 
             override fun onPlayerError(e: PlaybackException) {
@@ -463,43 +476,47 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 PlayerView(ctx).apply {
-                    player = controlsPlayer
-                    useController = true
+                    player = exoPlayer
+                    useController = false // los controles son propios (más abajo)
                     keepScreenOn = true
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
-                    setShowRewindButton(true)
-                    setShowFastForwardButton(true)
-                    // El engranaje de los controles abre/cierra nuestro menú en vez del menú predeterminado.
-                    val gear = findViewById<View>(androidx.media3.ui.R.id.exo_settings)
-                    if (gear != null) {
-                        gear.setOnClickListener { showMenu = !showMenu }
-                    } else {
-                        gearFound = false
-                    }
-                    setControllerVisibilityListener(
-                        PlayerView.ControllerVisibilityListener { visibility ->
-                            controlsVisible = visibility == View.VISIBLE
-                        }
-                    )
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
                 }
             },
             update = { view ->
-                // Al cambiar el player de controles (por ejemplo cuando se conoce el capítulo siguiente) se refresca la barra.
-                if (view.player !== controlsPlayer) view.player = controlsPlayer
                 view.resizeMode = videoModes[videoMode].resizeMode
-                // Con el menú abierto los controles no se ocultan solos.
-                view.controllerShowTimeoutMs = if (showMenu) 0 else 5000
                 // Mientras la TV reproduce, el teléfono puede apagar la pantalla.
                 view.keepScreenOn = castDevice == null
-                // En la ventana pequeña no se muestran los controles de PlayerView.
-                view.useController = !inPip && castDevice == null && !castBusy
-                if (inPip || castDevice != null || castBusy) view.hideController()
             },
         )
 
+        // Un toque muestra u oculta los controles; doble toque a los lados salta 10 s.
+        if (!inPip && castDevice == null && !castBusy) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(item.isLive) {
+                        detectTapGestures(
+                            onTap = { controlsVisible = !controlsVisible },
+                            onDoubleTap = { o ->
+                                if (!item.isLive) seekBy(if (o.x < size.width / 2f) -10_000L else 10_000L)
+                            },
+                        )
+                    }
+            )
+        }
+
+        if (buffering && error == null && showOverlayOrPlaying(inPip, castDevice != null, castBusy)) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center).size(44.dp),
+                color = Color.White,
+                strokeWidth = 3.dp,
+            )
+        }
+
+        // Barra superior: volver, canales (en vivo), título, resolución, información y menú ⋮.
         AnimatedVisibility(
-            visible = controlsVisible && !inPip && castDevice == null && !castBusy,
+            visible = showOverlay,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopStart),
@@ -514,6 +531,29 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             ) {
                 IconButton(onClick = { vm.back() }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Color.White)
+                }
+                if (item.isLive && channels.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .padding(top = 6.dp, end = 8.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color(0x66000000))
+                            .clickable {
+                                poke()
+                                showChannels = true
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.List,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("Canales", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                    }
                 }
                 Column(Modifier.weight(1f).padding(top = 6.dp)) {
                     Text(
@@ -545,61 +585,244 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                         )
                     }
                 }
+                if (videoH > 0) {
+                    Text(
+                        resolutionLabel(videoH),
+                        color = Color.White,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .padding(top = 10.dp, end = 4.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0x66000000))
+                            .clickable {
+                                poke()
+                                showQuality = true
+                            }
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
+                IconButton(onClick = {
+                    poke()
+                    showQuality = true
+                }) {
+                    Icon(Icons.Default.Info, contentDescription = "Calidad y resolución", tint = Color.White)
+                }
+                Box {
+                    IconButton(onClick = {
+                        poke()
+                        showMenu = true
+                    }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Más opciones", tint = Color.White)
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        if (audioOptions.size > 1 || textOptions.isNotEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("Audio y subtítulos") },
+                                onClick = {
+                                    showMenu = false
+                                    showTracks = true
+                                },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Calidad y resolución") },
+                            onClick = {
+                                showMenu = false
+                                showQuality = true
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Imagen: ${videoModes[videoMode].label}") },
+                            onClick = {
+                                showMenu = false
+                                vm.chooseVideoMode((videoMode + 1) % videoModes.size)
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (landscape) "Poner vertical" else "Poner horizontal") },
+                            onClick = {
+                                showMenu = false
+                                vm.playerLandscape = !vm.playerLandscape
+                            },
+                        )
+                        if (!item.isLive) {
+                            DropdownMenuItem(
+                                text = { Text(if (castBusy) "Enviando…" else "Enviar a TV") },
+                                enabled = !castBusy,
+                                onClick = {
+                                    showMenu = false
+                                    showCast = true
+                                },
+                            )
+                        }
+                    }
+                }
             }
         }
 
-        // Acciones del reproductor, encima de la barra de progreso de PlayerView.
+        // Barra inferior: pausa, ±10 s, tiempo, volumen, subtítulos, velocidad, PiP y orientación.
         AnimatedVisibility(
-            visible = controlsVisible && !inPip && castDevice == null && !castBusy && (showMenu || !gearFound),
+            visible = showOverlay,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC000000))))
-                    .horizontalScroll(rememberScrollState())
-                    .padding(start = 8.dp, end = 8.dp, top = 28.dp, bottom = 60.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (audioOptions.size > 1 || textOptions.isNotEmpty()) {
-                    TextButton(onClick = { showTracks = true }) {
-                        Text("Audio y subs", color = Color.White)
+            val wide = LocalConfiguration.current.screenWidthDp >= 600
+            val nextEp = nextEpisode
+            val transport: @Composable () -> Unit = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (prevChannel != null) {
+                        CtlButton({
+                            poke()
+                            vm.switchChannel(prevChannel)
+                        }) { GlyphIcon(Glyph.PREV) }
                     }
-                }
-                TextButton(onClick = { speedIndex = (speedIndex + 1) % speeds.size }) {
-                    Text("Velocidad ${speedLabels[speedIndex]}", color = Color.White)
-                }
-                if (item.isLive && channels.size > 1) {
-                    TextButton(onClick = { showChannels = true }) {
-                        Text("Canales", color = Color.White)
+                    CtlButton({
+                        poke()
+                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+                    }) { GlyphIcon(if (isPlaying) Glyph.PAUSE else Glyph.PLAY, size = 30) }
+                    if (!item.isLive) {
+                        CtlButton({ seekBy(-10_000L) }) { GlyphIcon(Glyph.BACK10) }
+                        CtlButton({ seekBy(10_000L) }) { GlyphIcon(Glyph.FWD10) }
                     }
-                }
-                TextButton(onClick = { vm.chooseVideoMode((videoMode + 1) % videoModes.size) }) {
-                    Text("Imagen: ${videoModes[videoMode].label}", color = Color.White)
-                }
-                TextButton(onClick = { vm.playerLandscape = !vm.playerLandscape }) {
-                    Text(if (landscape) "Vertical" else "Horizontal", color = Color.White)
-                }
-                if (!item.isLive) {
-                    TextButton(
-                        onClick = {
-                            showMenu = false
-                            showCast = true
-                        },
-                        enabled = !castBusy,
-                    ) {
-                        Text(if (castBusy) "Enviando…" else "Enviar a TV", color = Color.White)
-                    }
-                }
-                if (supportsPip) {
-                    TextButton(onClick = { enterPip() }) {
-                        Text("PiP", color = Color.White)
+                    if (nextChannel != null) {
+                        CtlButton({
+                            poke()
+                            vm.switchChannel(nextChannel)
+                        }) { GlyphIcon(Glyph.NEXT) }
+                    } else if (nextEp != null) {
+                        CtlButton({
+                            poke()
+                            vm.playNextEpisode(item, nextEp)
+                        }) { GlyphIcon(Glyph.NEXT) }
                     }
                 }
             }
+            val seekArea: @Composable (Modifier) -> Unit = { m ->
+                if (item.isLive) {
+                    Row(m.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(9.dp).clip(CircleShape).background(Color(0xFFFF3B30)))
+                        Spacer(Modifier.width(6.dp))
+                        Text("EN VIVO", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Column(m) {
+                        val dur = durationMs.coerceAtLeast(1L).toFloat()
+                        val shown = if (seeking) seekValue else positionMs.toFloat()
+                        Slider(
+                            value = shown.coerceIn(0f, dur),
+                            onValueChange = {
+                                seeking = true
+                                seekValue = it
+                                poke()
+                            },
+                            onValueChangeFinished = {
+                                exoPlayer.seekTo(seekValue.toLong())
+                                positionMs = seekValue.toLong()
+                                seeking = false
+                            },
+                            valueRange = 0f..dur,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.White,
+                                activeTrackColor = Color.White,
+                                inactiveTrackColor = Color(0x55FFFFFF),
+                            ),
+                        )
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(formatTime(shown.toLong()), color = Color.White, style = MaterialTheme.typography.labelMedium)
+                            Text(formatTime(durationMs), color = Color(0xCCFFFFFF), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
+            }
+            val tools: @Composable () -> Unit = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CtlButton({
+                        poke()
+                        muted = !muted
+                        exoPlayer.volume = if (muted) 0f else 1f
+                    }) { GlyphIcon(if (muted) Glyph.MUTE else Glyph.VOLUME) }
+                    if (audioOptions.size > 1 || textOptions.isNotEmpty()) {
+                        CtlButton({
+                            poke()
+                            showTracks = true
+                        }) { GlyphIcon(Glyph.SUBS) }
+                    }
+                    if (!item.isLive) {
+                        CtlButton({
+                            poke()
+                            speedIndex = (speedIndex + 1) % speeds.size
+                        }) {
+                            Text(speedLabels[speedIndex], color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                    if (supportsPip) CtlButton({ enterPip() }) { GlyphIcon(Glyph.PIP) }
+                    CtlButton({
+                        poke()
+                        vm.playerLandscape = !vm.playerLandscape
+                    }) { GlyphIcon(Glyph.SCREEN) }
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .displayCutoutPadding()
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xE60C0C12))
+                    .pointerInput(Unit) { detectTapGestures { } } // los toques en la barra no la ocultan
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+            ) {
+                if (wide) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        transport()
+                        seekArea(Modifier.weight(1f).padding(horizontal = 8.dp))
+                        tools()
+                    }
+                } else {
+                    seekArea(Modifier.fillMaxWidth())
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { transport() }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { tools() }
+                }
+            }
+        }
+
+        if (showQuality && !inPip) {
+            val vf = exoPlayer.videoFormat
+            val info = if (vf == null || vf.height <= 0) {
+                "Cargando información del video…"
+            } else {
+                buildString {
+                    append("${vf.width}×${vf.height} (${resolutionLabel(vf.height)})")
+                    if (vf.frameRate > 0f) append(" · ${vf.frameRate.toInt()} fps")
+                    vf.sampleMimeType?.substringAfter('/')?.let { append(" · ${it.uppercase(Locale.ROOT)}") }
+                    if (vf.bitrate > 0) append(" · %.1f Mbps".format(vf.bitrate / 1_000_000f))
+                }
+            }
+            QualityDialog(
+                info = info,
+                options = qualityOptions,
+                auto = qualityAuto,
+                onAuto = {
+                    qualityAuto = true
+                    exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                        .buildUpon()
+                        .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+                        .build()
+                },
+                onPick = { o ->
+                    qualityAuto = false
+                    exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                        .buildUpon()
+                        .setOverrideForType(TrackSelectionOverride(o.group.mediaTrackGroup, o.index))
+                        .build()
+                },
+                onDismiss = { showQuality = false },
+            )
         }
 
         if (showTracks && !inPip) {
@@ -814,6 +1037,38 @@ private fun ChannelPanel(
             }
         }
     }
+}
+
+/** Botón redondo de la barra de controles. */
+@Composable
+private fun CtlButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(42.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { content() }
+}
+
+private fun showOverlayOrPlaying(inPip: Boolean, casting: Boolean, castBusy: Boolean) =
+    !inPip && !casting && !castBusy
+
+private fun resolutionLabel(height: Int): String = when {
+    height >= 2000 -> "4K"
+    height >= 1400 -> "2K"
+    height >= 1000 -> "1080p"
+    height >= 700 -> "720p"
+    height >= 500 -> "576p"
+    else -> "${height}p"
+}
+
+private fun formatTime(ms: Long): String {
+    val t = (ms / 1000).coerceAtLeast(0L)
+    val h = t / 3600
+    val m = (t % 3600) / 60
+    val sec = t % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
 }
 
 private fun Context.findActivity(): Activity? {
