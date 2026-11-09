@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
@@ -82,6 +83,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val favs = mutableStateListOf<Fav>()
     /** "Continuar viendo": lo más reciente primero. */
     val recents = mutableStateListOf<Recent>()
+
+    /** Películas y capítulos que ya se vieron completos (para marcarlos con ✓). */
+    val watched = mutableStateSetOf<String>()
+
+    /** Avance (0..1) de una película empezada, o null. */
+    fun movieProgress(id: Int): Float? {
+        val key = currentAccount?.let { "${it.id}:movie:$id" } ?: return null
+        val r = recents.firstOrNull { it.key == key } ?: return null
+        return if (r.durationMs > 0) (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f) else null
+    }
+
+    fun isMovieWatched(id: Int): Boolean = currentAccount?.let { "${it.id}:movie:$id" in watched } ?: false
+
+    /** Idioma de subtítulos que se activa solo al abrir un video (null = el predeterminado). */
+    var subtitleLang: String?
+        get() = storage.subtitleLang
+        set(value) {
+            storage.subtitleLang = value
+        }
 
     var busy by mutableStateOf(false)
         private set
@@ -203,6 +223,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 favs.addAll(storage.loadFavs(acc.id))
                 recents.clear()
                 recents.addAll(storage.loadRecents(acc.id))
+                watched.clear()
+                watched.addAll(storage.loadWatched(acc.id))
                 when {
                     // Arranque automático: la app queda directamente en la lista, sin cuentas detrás.
                     fromLaunch -> {
@@ -605,7 +627,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val idx = recents.indexOfFirst { it.key == key }
         if (finished) {
             if (idx >= 0) recents.removeAt(idx)
+            if (watched.add(key)) currentAccount?.let { storage.saveWatched(it.id, watched.toSet()) }
         } else {
+            if (positionMs >= 10_000 && watched.remove(key)) {
+                currentAccount?.let { storage.saveWatched(it.id, watched.toSet()) }
+            }
             val base = item.recent ?: return
             // No se agrega lo que se abrió por menos de 10 segundos (salvo que ya estuviera en la lista).
             if (positionMs < 10_000 && idx < 0) return

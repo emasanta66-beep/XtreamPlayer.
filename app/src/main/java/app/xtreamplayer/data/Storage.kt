@@ -239,6 +239,23 @@ class Storage(context: Context) {
             .apply()
     }
 
+    /** Claves de películas/capítulos ya vistos hasta el final (por lista). */
+    fun loadWatched(accountId: String): Set<String> =
+        prefs.getStringSet("watched_$accountId", emptySet())?.toSet() ?: emptySet()
+
+    fun saveWatched(accountId: String, keys: Set<String>) {
+        prefs.edit().putStringSet("watched_$accountId", HashSet(keys)).apply()
+    }
+
+    /** Idioma de subtítulos preferido ("es", "en"...), "off" si prefiere sin subtítulos, o null si nunca eligió. */
+    var subtitleLang: String?
+        get() = prefs.getString("subtitle_lang", null)
+        set(value) {
+            val e = prefs.edit()
+            if (value == null) e.remove("subtitle_lang") else e.putString("subtitle_lang", value)
+            e.apply()
+        }
+
     fun getPosition(key: String): Long = prefs.getLong("pos_$key", 0L)
 
     fun setPosition(key: String, ms: Long) {

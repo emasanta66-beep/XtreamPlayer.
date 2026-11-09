@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
@@ -366,6 +367,8 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
                             title = m.name,
                             image = m.icon,
                             metadata = movieMetadata(m.name, m.rating, m.plot),
+                            progress = vm.movieProgress(m.id),
+                            watched = vm.isMovieWatched(m.id),
                             modifier = Modifier.fillMaxWidth(),
                             fav = vm.isFav("movie", m.id),
                             onClick = { vm.playMovie(m.id, m.name, m.ext, m.icon) },
@@ -641,6 +644,8 @@ private fun Poster(
     onFav: () -> Unit,
     download: (@Composable () -> Unit)? = null,
     metadata: String? = null,
+    progress: Float? = null,
+    watched: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.clickable(onClick = onClick)) {
@@ -673,6 +678,28 @@ private fun Poster(
             }
             if (download != null) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(4.dp)) { download() }
+            }
+            if (watched) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(4.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x99000000))
+                        .padding(4.dp),
+                ) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = "Vista",
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            } else if (progress != null && progress > 0f) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp),
+                )
             }
         }
         Spacer(Modifier.height(6.dp))
@@ -732,6 +759,8 @@ private fun <T> filterBy(
     nameOf: (T) -> String,
 ): List<T> {
     val query = q.trim()
+    // Al buscar, se busca en todas las categorías (no solo en la elegida).
+    val cat = if (query.isEmpty()) cat else null
     if (cat == null && query.isEmpty()) return items
     return items.filter {
         (cat == null || catOf(it) == cat) && (query.isEmpty() || nameOf(it).contains(query, ignoreCase = true))

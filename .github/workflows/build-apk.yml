@@ -119,3 +119,13 @@ jobs:
               --notes "$NOTES" \
               --latest
           fi
+
+      # Deja solo las 10 versiones más recientes (el actualizador solo usa la última).
+      - name: Limpiar versiones antiguas
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release list --limit 100 --json tagName --jq '.[10:][].tagName' | while read -r tag; do
+            [ -n "$tag" ] && gh release delete "$tag" --cleanup-tag --yes || true
+          done

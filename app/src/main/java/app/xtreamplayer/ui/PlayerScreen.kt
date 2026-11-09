@@ -155,7 +155,18 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             .setSeekBackIncrementMs(10_000)
             .setSeekForwardIncrementMs(10_000)
             .build()
-            .apply { playWhenReady = true }
+            .apply {
+                playWhenReady = true
+                // Subtítulos: se activa solo el idioma que elegiste la última vez.
+                when (val pref = vm.subtitleLang) {
+                    null -> {}
+                    "off" -> trackSelectionParameters = trackSelectionParameters.buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+                    else -> trackSelectionParameters = trackSelectionParameters.buildUpon()
+                        .setPreferredTextLanguage(pref)
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).build()
+                }
+            }
     }
 
     // Pistas de audio y subtítulos disponibles (se actualizan cuando el reproductor las descubre).
@@ -828,7 +839,11 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                     val builder = exoPlayer.trackSelectionParameters.buildUpon()
                     if (o == null) {
                         builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                        vm.subtitleLang = "off"
                     } else {
+                        o.group.getTrackFormat(o.index).language
+                            ?.takeIf { it.isNotBlank() && it != "und" }
+                            ?.let { vm.subtitleLang = it }
                         builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                             .setOverrideForType(TrackSelectionOverride(o.group.mediaTrackGroup, o.index))
                     }

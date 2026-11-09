@@ -189,7 +189,7 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    "E${ep.number} · ${ep.title}",
+                                    (if (vm.episodeKey(ep) in vm.watched) "✓ " else "") + "E${ep.number} · ${ep.title}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
