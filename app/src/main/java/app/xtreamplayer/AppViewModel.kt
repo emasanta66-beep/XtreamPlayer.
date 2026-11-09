@@ -9,7 +9,6 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateSetOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
@@ -85,7 +84,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val recents = mutableStateListOf<Recent>()
 
     /** Películas y capítulos que ya se vieron completos (para marcarlos con ✓). */
-    val watched = mutableStateSetOf<String>()
+    val watched = mutableStateListOf<String>()
 
     /** Avance (0..1) de una película empezada, o null. */
     fun movieProgress(id: Int): Float? {
@@ -627,7 +626,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val idx = recents.indexOfFirst { it.key == key }
         if (finished) {
             if (idx >= 0) recents.removeAt(idx)
-            if (watched.add(key)) currentAccount?.let { storage.saveWatched(it.id, watched.toSet()) }
+            if (key !in watched && watched.add(key)) currentAccount?.let { storage.saveWatched(it.id, watched.toSet()) }
         } else {
             if (positionMs >= 10_000 && watched.remove(key)) {
                 currentAccount?.let { storage.saveWatched(it.id, watched.toSet()) }
