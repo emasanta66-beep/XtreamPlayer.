@@ -79,6 +79,7 @@ jobs:
       - name: Publicar Release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           if gh release view "v$BUILD_NUMBER" >/dev/null 2>&1; then
