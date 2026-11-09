@@ -315,7 +315,7 @@ private fun LiveTab(vm: AppViewModel, query: String, modifier: Modifier) {
             EmptyHint("Sin resultados")
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
-                items(list) { ch ->
+                items(list, key = { it.id }) { ch ->
                     ListRow(
                         title = ch.name,
                         image = ch.icon,

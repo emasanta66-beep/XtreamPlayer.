@@ -8,9 +8,15 @@ on:
 permissions:
   contents: read
 
+# Si subes varios cambios seguidos, solo se compila el último (ahorra tiempo y evita versiones pisadas).
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       BUILD_NUMBER: ${{ github.run_number }}
     permissions:
@@ -101,12 +107,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           BUILD_NUMBER: ${{ github.run_number }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
+          NOTES="$(printf '%s' "$COMMIT_MSG" | head -n 1)"
+          [ -z "$NOTES" ] && NOTES="Compilación automática $BUILD_NUMBER"
           if gh release view "v$BUILD_NUMBER" >/dev/null 2>&1; then
             gh release upload "v$BUILD_NUMBER" XtreamPlayer.apk --clobber
           else
             gh release create "v$BUILD_NUMBER" XtreamPlayer.apk \
               --title "XtreamPlayer v$BUILD_NUMBER" \
-              --notes "Compilación automática $BUILD_NUMBER" \
+              --notes "$NOTES" \
               --latest
           fi
