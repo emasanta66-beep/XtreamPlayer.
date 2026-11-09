@@ -76,7 +76,7 @@ class Updater(private val ctx: Context) {
                 if (a.optString("name").equals(APK_ASSET_NAME, ignoreCase = true)) {
                     val apkUrl = a.optString("browser_download_url")
                     val size = a.optLong("size", 0L)
-                    if (isTrustedReleaseUrl(apkUrl) && size in 1..MAX_APK_BYTES) {
+                    if (isTrustedReleaseUrl(apkUrl) && size in 1L..MAX_APK_BYTES) {
                         return UpdateInfo(
                             version = version,
                             name = json.optString("name").ifBlank { "Versión $version" },
