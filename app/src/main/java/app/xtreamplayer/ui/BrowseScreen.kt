@@ -87,12 +87,12 @@ import coil.compose.AsyncImage
 @Composable
 fun BrowseScreen(vm: AppViewModel) {
     // Pestaña inicial: "Películas". "Continuar" queda al final, después de "Favoritos".
-    var tab by rememberSaveable { mutableIntStateOf(TAB_MOVIES) }
+    var tab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    val titles = listOf("En vivo", "Películas", "Series", "Favoritos", "Continuar", "Descargas")
+    val titles = listOf("Inicio", "En vivo", "Películas", "Series", "Favoritos", "Continuar", "Descargas")
 
     LaunchedEffect(tab) {
         when (tab) {
@@ -217,6 +217,7 @@ fun BrowseScreen(vm: AppViewModel) {
     ) { pad ->
         val modifier = Modifier.padding(pad).fillMaxSize()
         when (tab) {
+            TAB_HOME -> HomeTab(vm, onContinue = { tab = TAB_CONTINUE }, onMovies = { tab = TAB_MOVIES }, onLive = { tab = TAB_LIVE }, modifier = modifier)
             TAB_LIVE -> LiveTab(vm, query, modifier)
             TAB_MOVIES -> MoviesTab(vm, query, modifier)
             TAB_SERIES -> SeriesTab(vm, query, modifier)
@@ -228,11 +229,12 @@ fun BrowseScreen(vm: AppViewModel) {
 }
 
 // Posición de cada pestaña (mismo orden que `titles`).
-private const val TAB_LIVE = 0
-private const val TAB_MOVIES = 1
-private const val TAB_SERIES = 2
-private const val TAB_FAVS = 3
-private const val TAB_CONTINUE = 4
+private const val TAB_HOME = 0
+private const val TAB_LIVE = 1
+private const val TAB_MOVIES = 2
+private const val TAB_SERIES = 3
+private const val TAB_FAVS = 4
+private const val TAB_CONTINUE = 5
 
 // ---------------------------------------------------------------- Pestañas
 
