@@ -94,7 +94,7 @@ class Updater(private val ctx: Context) {
     /** Descarga el APK a caché, limita su tamaño y solo acepta enlaces de Releases de este repo. */
     fun download(info: UpdateInfo, onProgress: (Float) -> Unit): File {
         if (!isTrustedReleaseUrl(info.apkUrl)) throw IOException("Enlace de actualización no confiable")
-        if (info.sizeBytes !in 1..MAX_APK_BYTES) throw IOException("Tamaño de actualización inválido")
+        if (info.sizeBytes !in 1L..MAX_APK_BYTES) throw IOException("Tamaño de actualización inválido")
 
         val dir = File(ctx.cacheDir, "updates")
         if (!dir.exists() && !dir.mkdirs()) throw IOException("No se pudo preparar la descarga")
