@@ -168,7 +168,7 @@ private fun HomeShortcut(label: String, icon: androidx.compose.ui.graphics.vecto
 private fun RecentCard(item: Recent, onClick: () -> Unit) {
     Column(Modifier.width(148.dp).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Box(Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceContainer)) {
-            if (item.image.isNotBlank()) {
+            if (item.image?.isNotBlank() == true) {
                 AsyncImage(item.image, contentDescription = item.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
         }
