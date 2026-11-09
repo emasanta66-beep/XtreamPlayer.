@@ -46,7 +46,7 @@ Con JDK 17, Android SDK (platform 35) y Gradle 8.14: `gradle assembleDebug`.
 
 - Se permite tráfico HTTP sin cifrar porque casi todos los servidores IPTV lo usan.
 - El APK sale firmado con la clave de debug: sirve para instalar y usar, no para publicar en Play Store.
-- Las contraseñas se guardan en el almacenamiento privado de la app (sin copia de seguridad en la nube).
+- Las cuentas se guardan cifradas con una clave de Android Keystore, dentro del almacenamiento privado de la app. Las cuentas existentes se migran automáticamente al actualizar (sin copia de seguridad en la nube).
 - ExoPlayer no reproduce `.avi`; el resto de contenedores habituales funcionan.
 - Solo reproduce contenido de servicios que tengas contratados legítimamente.
 
