@@ -6,16 +6,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
       BUILD_NUMBER: ${{ github.run_number }}
-      GH_TOKEN: ${{ github.token }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +30,9 @@ jobs:
       # Si el repositorio tiene el secret KEYSTORE_BASE64, firma con esa clave
       # (así el APK se instala encima de la versión anterior). Si no es válido, usa debug.
       - name: Preparar firma
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 -d > "$RUNNER_TEMP/xtream.jks" 2>/dev/null || true
@@ -45,6 +47,8 @@ jobs:
           fi
 
       - name: Compilar APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_PATH" ]; then
             gradle assembleRelease --no-daemon -PbuildNumber="$BUILD_NUMBER"
@@ -59,8 +63,23 @@ jobs:
           name: XtreamPlayer-apk
           path: XtreamPlayer.apk
 
-      # Publica el APK como Release para que el actualizador integrado lo detecte.
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: XtreamPlayer-apk
+          path: .
+
+      # Solo este trabajo necesita permiso de escritura para publicar el Release.
       - name: Publicar Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
           if gh release view "v$BUILD_NUMBER" >/dev/null 2>&1; then
             gh release upload "v$BUILD_NUMBER" XtreamPlayer.apk --clobber
