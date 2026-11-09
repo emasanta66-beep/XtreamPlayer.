@@ -19,8 +19,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LiveTv
-import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -120,8 +119,8 @@ fun HomeTab(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Explorar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    HomeShortcut("Películas", Icons.Default.Movie, onMovies, Modifier.weight(1f))
-                    HomeShortcut("En vivo", Icons.Default.LiveTv, onLive, Modifier.weight(1f))
+                    HomeShortcut("Películas", Icons.AutoMirrored.Filled.List, onMovies, Modifier.weight(1f))
+                    HomeShortcut("En vivo", Icons.Default.PlayArrow, onLive, Modifier.weight(1f))
                 }
             }
         }
