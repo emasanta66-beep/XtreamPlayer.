@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -345,41 +346,39 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
         } else {
             val categoryNames = remember(s.cats) { s.cats.associate { it.id to it.name } }
             val shelves = remember(list) { list.groupBy { it.categoryId } }
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(104.dp),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 22.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 shelves.forEach { (categoryId, movies) ->
-                    item(key = "heading-$categoryId") {
+                    item(key = "heading-$categoryId", span = { GridItemSpan(maxLineSpan) }) {
                         Text(
                             categoryNames[categoryId] ?: "Películas",
                             style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
                         )
                     }
-                    item(key = "shelf-$categoryId") {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                            items(movies, key = { it.id }) { m ->
-                                Poster(
-                                    title = m.name,
-                                    image = m.icon,
-                                    metadata = movieMetadata(m.name, m.rating, m.plot),
-                                    modifier = Modifier.width(146.dp),
-                                    fav = vm.isFav("movie", m.id),
-                                    onClick = { vm.playMovie(m.id, m.name, m.ext, m.icon) },
-                                    onFav = { vm.toggleFav(Fav("movie", m.id, m.name, m.icon, m.ext)) },
-                                    download = {
-                                        val key = vm.currentAccount?.let { "${it.id}:movie:${m.id}" }
-                                        DownloadBadge(
-                                            d = vm.downloads.firstOrNull { it.key == key },
-                                            onStart = { vm.downloadMovie(m.id, m.name, m.ext, m.icon) },
-                                            onToggle = { key?.let { vm.toggleDownload(it) } },
-                                        )
-                                    },
+                    items(movies, key = { "$categoryId-${it.id}" }) { m ->
+                        Poster(
+                            title = m.name,
+                            image = m.icon,
+                            metadata = movieMetadata(m.name, m.rating, m.plot),
+                            modifier = Modifier.fillMaxWidth(),
+                            fav = vm.isFav("movie", m.id),
+                            onClick = { vm.playMovie(m.id, m.name, m.ext, m.icon) },
+                            onFav = { vm.toggleFav(Fav("movie", m.id, m.name, m.icon, m.ext)) },
+                            download = {
+                                val key = vm.currentAccount?.let { "${it.id}:movie:${m.id}" }
+                                DownloadBadge(
+                                    d = vm.downloads.firstOrNull { it.key == key },
+                                    onStart = { vm.downloadMovie(m.id, m.name, m.ext, m.icon) },
+                                    onToggle = { key?.let { vm.toggleDownload(it) } },
                                 )
-                            }
-                        }
+                            },
+                        )
                     }
                 }
             }
@@ -403,33 +402,31 @@ private fun SeriesTab(vm: AppViewModel, query: String, modifier: Modifier) {
         } else {
             val categoryNames = remember(s.cats) { s.cats.associate { it.id to it.name } }
             val shelves = remember(list) { list.groupBy { it.categoryId } }
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(104.dp),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 22.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 shelves.forEach { (categoryId, seriesList) ->
-                    item(key = "heading-$categoryId") {
+                    item(key = "heading-$categoryId", span = { GridItemSpan(maxLineSpan) }) {
                         Text(
                             categoryNames[categoryId] ?: "Series",
                             style = MaterialTheme.typography.titleLarge,
                             modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
                         )
                     }
-                    item(key = "shelf-$categoryId") {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                            items(seriesList, key = { it.id }) { sr ->
-                                Poster(
-                                    title = sr.name,
-                                    image = sr.cover,
-                                    metadata = seriesMetadata(sr.rating, sr.plot),
-                                    modifier = Modifier.width(146.dp),
-                                    fav = vm.isFav("series", sr.id),
-                                    onClick = { vm.openSeries(sr) },
-                                    onFav = { vm.toggleFav(Fav("series", sr.id, sr.name, sr.cover, "")) },
-                                )
-                            }
-                        }
+                    items(seriesList, key = { "$categoryId-${it.id}" }) { sr ->
+                        Poster(
+                            title = sr.name,
+                            image = sr.cover,
+                            metadata = seriesMetadata(sr.rating, sr.plot),
+                            modifier = Modifier.fillMaxWidth(),
+                            fav = vm.isFav("series", sr.id),
+                            onClick = { vm.openSeries(sr) },
+                            onFav = { vm.toggleFav(Fav("series", sr.id, sr.name, sr.cover, "")) },
+                        )
                     }
                 }
             }
@@ -690,24 +687,28 @@ private fun Poster(
                 metadata,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
+                maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
             )
         }
     }
 }
 
+/** Algunos proveedores mandan la sinopsis con "\\n" escrito literalmente; se limpia para mostrarla como texto normal. */
+private fun cleanPlot(plot: String?): String? =
+    plot?.replace("\\r", " ")?.replace("\\n", " ")?.replace(Regex("\\s+"), " ")?.trim()?.takeIf { it.isNotBlank() }
+
 private fun movieMetadata(title: String, rating: String?, plot: String?): String {
     val year = Regex("\\b(19\\d{2}|20\\d{2})\\b").find(title)?.value
     val score = rating?.takeIf { it.toFloatOrNull()?.let { n -> n > 0f } == true }?.let { "★ $it" }
     val details = listOfNotNull(year, score).joinToString(" · ")
-    val description = plot?.replace(Regex("\\s+"), " ")?.takeIf { it.isNotBlank() }?.take(76)
-    return listOfNotNull(details.takeIf { it.isNotBlank() }, description).joinToString("\\n")
+    val description = cleanPlot(plot)?.take(76)
+    return listOfNotNull(details.takeIf { it.isNotBlank() }, description).joinToString("\n")
 }
 
 private fun seriesMetadata(rating: String?, plot: String?): String {
     val score = rating?.takeIf { it.toFloatOrNull()?.let { n -> n > 0f } == true }?.let { "★ $it" }
-    val description = plot?.replace(Regex("\\s+"), " ")?.takeIf { it.isNotBlank() }?.take(72)
+    val description = cleanPlot(plot)?.take(72)
     return listOfNotNull(score, description).joinToString(" · ")
 }
 
