@@ -65,6 +65,7 @@ class Storage(context: Context) {
 
     private companion object {
         const val KEY_ENCRYPTED_ACCOUNTS = "accounts_encrypted_v1"
+        const val KEY_ENCRYPTED_DOWNLOADS = "downloads_encrypted_v1"
     }
 
     fun loadFavs(accountId: String): List<Fav> = try {
@@ -156,9 +157,30 @@ class Storage(context: Context) {
     }
 
     /** Descargas (películas y capítulos) de todas las listas. */
-    fun loadDownloads(): List<DownloadItem> = try {
-        val arr = JSONArray(prefs.getString("downloads", "[]"))
-        List(arr.length()) { i ->
+    fun loadDownloads(): List<DownloadItem> {
+        val encrypted = prefs.getString(KEY_ENCRYPTED_DOWNLOADS, null)
+        if (encrypted != null) {
+            return try {
+                parseDownloads(AccountCipher.decrypt(encrypted))
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+
+        // Migra las URL de descargas existentes, que pueden incluir credenciales del proveedor.
+        return try {
+            val legacy = prefs.getString("downloads", "[]") ?: "[]"
+            val downloads = parseDownloads(legacy)
+            if (prefs.contains("downloads")) saveDownloads(downloads)
+            downloads
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun parseDownloads(raw: String): List<DownloadItem> {
+        val arr = JSONArray(raw)
+        return List(arr.length()) { i ->
             val o = arr.getJSONObject(i)
             DownloadItem(
                 key = o.getString("key"),
@@ -182,8 +204,6 @@ class Storage(context: Context) {
                 error = o.optString("error", "").ifEmpty { null },
             )
         }
-    } catch (e: Exception) {
-        emptyList()
     }
 
     fun saveDownloads(list: List<DownloadItem>) {
@@ -208,7 +228,10 @@ class Storage(context: Context) {
                     .put("error", d.error ?: "")
             )
         }
-        prefs.edit().putString("downloads", arr.toString()).apply()
+        prefs.edit()
+            .putString(KEY_ENCRYPTED_DOWNLOADS, AccountCipher.encrypt(arr.toString()))
+            .remove("downloads")
+            .apply()
     }
 
     fun getPosition(key: String): Long = prefs.getLong("pos_$key", 0L)
