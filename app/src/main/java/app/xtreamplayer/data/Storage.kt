@@ -4,13 +4,36 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Persistencia local sencilla (SharedPreferences + JSON). */
+/** Persistencia local (SharedPreferences + JSON), con las cuentas cifradas mediante Android Keystore. */
 class Storage(context: Context) {
-    private val prefs = context.getSharedPreferences("xtream_player", Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences("xtream_player", Context.MODE_PRIVATE)
 
-    fun loadAccounts(): List<Account> = try {
-        val arr = JSONArray(prefs.getString("accounts", "[]"))
-        List(arr.length()) { i ->
+    fun loadAccounts(): List<Account> {
+        val encrypted = prefs.getString(KEY_ENCRYPTED_ACCOUNTS, null)
+        if (encrypted != null) {
+            // No sustituir datos cifrados que no se puedan leer: eso podría borrar cuentas tras un fallo del Keystore.
+            return try {
+                parseAccounts(AccountCipher.decrypt(encrypted))
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
+
+        // Migración automática de las cuentas guardadas por versiones anteriores.
+        return try {
+            val legacy = prefs.getString("accounts", "[]") ?: "[]"
+            val accounts = parseAccounts(legacy)
+            if (prefs.contains("accounts")) saveAccounts(accounts)
+            accounts
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun parseAccounts(raw: String): List<Account> {
+        val arr = JSONArray(raw)
+        return List(arr.length()) { i ->
             val o = arr.getJSONObject(i)
             Account(
                 id = o.getString("id"),
@@ -20,8 +43,6 @@ class Storage(context: Context) {
                 password = o.getString("password"),
             )
         }
-    } catch (e: Exception) {
-        emptyList()
     }
 
     fun saveAccounts(list: List<Account>) {
@@ -36,7 +57,14 @@ class Storage(context: Context) {
                     .put("password", a.password)
             )
         }
-        prefs.edit().putString("accounts", arr.toString()).apply()
+        val editor = prefs.edit()
+            .putString(KEY_ENCRYPTED_ACCOUNTS, AccountCipher.encrypt(arr.toString()))
+            .remove("accounts")
+        editor.apply()
+    }
+
+    private companion object {
+        const val KEY_ENCRYPTED_ACCOUNTS = "accounts_encrypted_v1"
     }
 
     fun loadFavs(accountId: String): List<Fav> = try {
