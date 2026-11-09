@@ -702,7 +702,7 @@ private fun movieMetadata(title: String, rating: String?, plot: String?): String
     val score = rating?.takeIf { it.toFloatOrNull()?.let { n -> n > 0f } == true }?.let { "★ $it" }
     val details = listOfNotNull(year, score).joinToString(" · ")
     val description = plot?.replace(Regex("\\s+"), " ")?.takeIf { it.isNotBlank() }?.take(76)
-    return listOf(details, description).filter { it.isNotBlank() }.joinToString("\\n")
+    return listOfNotNull(details.takeIf { it.isNotBlank() }, description).joinToString("\\n")
 }
 
 private fun seriesMetadata(rating: String?, plot: String?): String {
