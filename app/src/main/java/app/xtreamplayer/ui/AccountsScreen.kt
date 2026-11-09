@@ -184,6 +184,9 @@ private fun AccountDialog(
     var server by remember { mutableStateOf(initial?.server ?: "") }
     var user by remember { mutableStateOf(initial?.username ?: "") }
     var pass by remember { mutableStateOf(initial?.password ?: "") }
+    val usesInsecureHttp = server.trim().let {
+        it.startsWith("http://", ignoreCase = true) || (it.isNotEmpty() && !it.contains("://"))
+    }
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -209,6 +212,13 @@ private fun AccountDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (usesInsecureHttp) {
+                    Text(
+                        "Esta conexión usa HTTP sin cifrar; tu usuario y contraseña podrían ser interceptados en la red. Usa HTTPS si tu proveedor lo admite.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 OutlinedTextField(
                     value = user,
                     onValueChange = { user = it },
