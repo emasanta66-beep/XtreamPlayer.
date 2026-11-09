@@ -343,29 +343,44 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
         if (list.isEmpty()) {
             EmptyHint("Sin resultados")
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(110.dp),
-                contentPadding = PaddingValues(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+            val categoryNames = remember(s.cats) { s.cats.associate { it.id to it.name } }
+            val shelves = remember(list) { list.groupBy { it.categoryId } }
+            LazyColumn(
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(list) { m ->
-                    Poster(
-                        title = m.name,
-                        image = m.icon,
-                        fav = vm.isFav("movie", m.id),
-                        onClick = { vm.playMovie(m.id, m.name, m.ext, m.icon) },
-                        onFav = { vm.toggleFav(Fav("movie", m.id, m.name, m.icon, m.ext)) },
-                        download = {
-                            val key = vm.currentAccount?.let { "${it.id}:movie:${m.id}" }
-                            DownloadBadge(
-                                d = vm.downloads.firstOrNull { it.key == key },
-                                onStart = { vm.downloadMovie(m.id, m.name, m.ext, m.icon) },
-                                onToggle = { key?.let { vm.toggleDownload(it) } },
-                            )
-                        },
-                    )
+                shelves.forEach { (categoryId, movies) ->
+                    item(key = "heading-$categoryId") {
+                        Text(
+                            categoryNames[categoryId] ?: "Películas",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
+                        )
+                    }
+                    item(key = "shelf-$categoryId") {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            items(movies, key = { it.id }) { m ->
+                                Poster(
+                                    title = m.name,
+                                    image = m.icon,
+                                    metadata = movieMetadata(m.name, m.rating),
+                                    modifier = Modifier.width(146.dp),
+                                    fav = vm.isFav("movie", m.id),
+                                    onClick = { vm.playMovie(m.id, m.name, m.ext, m.icon) },
+                                    onFav = { vm.toggleFav(Fav("movie", m.id, m.name, m.icon, m.ext)) },
+                                    download = {
+                                        val key = vm.currentAccount?.let { "${it.id}:movie:${m.id}" }
+                                        DownloadBadge(
+                                            d = vm.downloads.firstOrNull { it.key == key },
+                                            onStart = { vm.downloadMovie(m.id, m.name, m.ext, m.icon) },
+                                            onToggle = { key?.let { vm.toggleDownload(it) } },
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -386,21 +401,36 @@ private fun SeriesTab(vm: AppViewModel, query: String, modifier: Modifier) {
         if (list.isEmpty()) {
             EmptyHint("Sin resultados")
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(110.dp),
-                contentPadding = PaddingValues(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+            val categoryNames = remember(s.cats) { s.cats.associate { it.id to it.name } }
+            val shelves = remember(list) { list.groupBy { it.categoryId } }
+            LazyColumn(
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(list) { sr ->
-                    Poster(
-                        title = sr.name,
-                        image = sr.cover,
-                        fav = vm.isFav("series", sr.id),
-                        onClick = { vm.openSeries(sr) },
-                        onFav = { vm.toggleFav(Fav("series", sr.id, sr.name, sr.cover, "")) },
-                    )
+                shelves.forEach { (categoryId, seriesList) ->
+                    item(key = "heading-$categoryId") {
+                        Text(
+                            categoryNames[categoryId] ?: "Series",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
+                        )
+                    }
+                    item(key = "shelf-$categoryId") {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            items(seriesList, key = { it.id }) { sr ->
+                                Poster(
+                                    title = sr.name,
+                                    image = sr.cover,
+                                    metadata = seriesMetadata(sr.rating, sr.plot),
+                                    modifier = Modifier.width(146.dp),
+                                    fav = vm.isFav("series", sr.id),
+                                    onClick = { vm.openSeries(sr) },
+                                    onFav = { vm.toggleFav(Fav("series", sr.id, sr.name, sr.cover, "")) },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -613,8 +643,10 @@ private fun Poster(
     onClick: () -> Unit,
     onFav: () -> Unit,
     download: (@Composable () -> Unit)? = null,
+    metadata: String? = null,
+    modifier: Modifier = Modifier,
 ) {
-    Column(Modifier.clickable(onClick = onClick)) {
+    Column(modifier.clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -649,11 +681,32 @@ private fun Poster(
         Spacer(Modifier.height(6.dp))
         Text(
             title,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.titleSmall,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        if (!metadata.isNullOrBlank()) {
+            Text(
+                metadata,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
+}
+
+private fun movieMetadata(title: String, rating: String?): String {
+    val year = Regex("\\b(19\\d{2}|20\\d{2})\\b").find(title)?.value
+    val score = rating?.takeIf { it.toFloatOrNull()?.let { n -> n > 0f } == true }?.let { "★ $it" }
+    return listOfNotNull(year, score).joinToString(" · ")
+}
+
+private fun seriesMetadata(rating: String?, plot: String?): String {
+    val score = rating?.takeIf { it.toFloatOrNull()?.let { n -> n > 0f } == true }?.let { "★ $it" }
+    val description = plot?.replace(Regex("\\s+"), " ")?.takeIf { it.isNotBlank() }?.take(72)
+    return listOfNotNull(score, description).joinToString(" · ")
 }
 
 @Composable
