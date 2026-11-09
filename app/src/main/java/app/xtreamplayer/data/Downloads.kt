@@ -222,8 +222,33 @@ object DownloadCenter {
             val call = Http.client.newCall(req)
             currentCall = call
             call.execute().use { resp ->
-                if (resp.code == 416 && have > 0) return null // ya estaba completo
+                if (resp.code == 416 && have > 0) {
+                    val total = Regex("^bytes \\*/(\\d+)$")
+                        .matchEntire(resp.header("Content-Range").orEmpty())
+                        ?.groupValues?.get(1)?.toLongOrNull()
+                    if (total == have) return null
+                    file.delete()
+                    return "El servidor rechazó la reanudación; se descartó el fragmento. Reanuda la descarga."
+                }
                 if (!resp.isSuccessful) return "El servidor respondió ${resp.code}"
+
+                val range = if (resp.code == 206) {
+                    val match = Regex("^bytes (\\d+)-(\\d+)/(\\d+|\\*)$")
+                        .matchEntire(resp.header("Content-Range").orEmpty())
+                        ?: return "El servidor envió un rango inválido"
+                    val start = match.groupValues[1].toLongOrNull()
+                        ?: return "El servidor envió un rango inválido"
+                    val end = match.groupValues[2].toLongOrNull()
+                        ?: return "El servidor envió un rango inválido"
+                    val total = match.groupValues[3].toLongOrNull()
+                    if (start != have || end < start || (total != null && end >= total)) {
+                        return "El rango de descarga no coincide"
+                    }
+                    Triple(start, end, total)
+                } else {
+                    null
+                }
+
                 val type = resp.header("Content-Type") ?: ""
                 if (type.startsWith("text/") || type.contains("json")) {
                     return "El servidor no entregó el video (¿límite de conexiones de tu lista?)"
@@ -232,7 +257,16 @@ object DownloadCenter {
                 val append = resp.code == 206 && have > 0
                 if (!append) have = 0L
                 val len = body.contentLength()
-                val total = if (len > 0) have + len else 0L
+                if (range != null && len > 0 && len != range.second - range.first + 1) {
+                    return "La respuesta del servidor llegó incompleta"
+                }
+                val total = range?.third ?: if (len > 0) have + len else 0L
+                val requiredBytes = if (total > have) total - have else len
+                val usableSpace = file.parentFile?.usableSpace ?: Long.MAX_VALUE
+                if (requiredBytes > 0 && usableSpace < requiredBytes + MIN_FREE_SPACE_BYTES) {
+                    return "No hay espacio suficiente. Libera espacio y reanuda."
+                }
+
                 var written = have
                 var lastReport = 0L
                 FileOutputStream(file, append).use { out ->
@@ -241,6 +275,10 @@ object DownloadCenter {
                         while (true) {
                             val n = input.read(buf)
                             if (n < 0) break
+                            val available = file.parentFile?.usableSpace ?: Long.MAX_VALUE
+                            if (available < n.toLong() + MIN_FREE_SPACE_BYTES) {
+                                throw IOException("No hay espacio suficiente. Libera espacio y reanuda.")
+                            }
                             out.write(buf, 0, n)
                             written += n
                             val now = System.currentTimeMillis()
@@ -251,12 +289,19 @@ object DownloadCenter {
                         }
                     }
                 }
-                if (total > 0 && written < total) return "La descarga se cortó. Reanúdala."
+                if (total > 0 && written != total) return "La descarga se cortó. Reanúdala."
                 if (written == 0L) return "El archivo llegó vacío"
             }
             null
         } catch (e: IOException) {
-            "Se cortó la conexión o no hay espacio (${e.message ?: "error"})"
+            if (e.message?.contains("No hay espacio suficiente") == true) {
+                "No hay espacio suficiente. Libera espacio y reanuda."
+            } else {
+                "Se cortó la conexión. Comprueba la red y reanuda la descarga."
+            }
         }
     }
+
+    private const val MIN_FREE_SPACE_BYTES = 10L * 1024 * 1024
+
 }
