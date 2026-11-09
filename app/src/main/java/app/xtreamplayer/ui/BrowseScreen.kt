@@ -364,7 +364,7 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
                                 Poster(
                                     title = m.name,
                                     image = m.icon,
-                                    metadata = movieMetadata(m.name, m.rating),
+                                    metadata = movieMetadata(m.name, m.rating, m.plot),
                                     modifier = Modifier.width(146.dp),
                                     fav = vm.isFav("movie", m.id),
                                     onClick = { vm.playMovie(m.id, m.name, m.ext, m.icon) },
@@ -697,10 +697,12 @@ private fun Poster(
     }
 }
 
-private fun movieMetadata(title: String, rating: String?): String {
+private fun movieMetadata(title: String, rating: String?, plot: String?): String {
     val year = Regex("\\b(19\\d{2}|20\\d{2})\\b").find(title)?.value
     val score = rating?.takeIf { it.toFloatOrNull()?.let { n -> n > 0f } == true }?.let { "★ $it" }
-    return listOfNotNull(year, score).joinToString(" · ")
+    val details = listOfNotNull(year, score).joinToString(" · ")
+    val description = plot?.replace(Regex("\\s+"), " ")?.takeIf { it.isNotBlank() }?.take(76)
+    return listOf(details, description).filter { it.isNotBlank() }.joinToString("\\n")
 }
 
 private fun seriesMetadata(rating: String?, plot: String?): String {
