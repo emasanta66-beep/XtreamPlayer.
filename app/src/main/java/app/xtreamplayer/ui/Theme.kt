@@ -9,19 +9,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 
 private val Scheme = darkColorScheme(
-    primary = Color(0xFF8AB4FF),
-    onPrimary = Color(0xFF00205B),
-    primaryContainer = Color(0xFF1F3C80),
-    onPrimaryContainer = Color(0xFFD9E5FF),
-    secondary = Color(0xFFB4C5F5),
-    background = Color(0xFF0E1116),
-    onBackground = Color(0xFFE4E7EE),
-    surface = Color(0xFF0E1116),
-    onSurface = Color(0xFFE4E7EE),
-    surfaceVariant = Color(0xFF1C222C),
-    onSurfaceVariant = Color(0xFFA9B1C1),
-    surfaceContainer = Color(0xFF161B23),
-    surfaceContainerHigh = Color(0xFF1C222C),
+    primary = Color(0xFF39C6A3),
+    onPrimary = Color(0xFF06241D),
+    primaryContainer = Color(0xFF164B40),
+    onPrimaryContainer = Color(0xFFB7F2DF),
+    secondary = Color(0xFF72E0BE),
+    background = Color(0xFF0F1115),
+    onBackground = Color(0xFFE6E8EE),
+    surface = Color(0xFF0F1115),
+    onSurface = Color(0xFFE6E8EE),
+    surfaceVariant = Color(0xFF1E222B),
+    onSurfaceVariant = Color(0xFF9BA3B4),
+    surfaceContainer = Color(0xFF171A21),
+    surfaceContainerHigh = Color(0xFF1E222B),
 )
 
 @Composable

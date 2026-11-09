@@ -101,7 +101,7 @@ class XtreamApi(private val acc: Account) {
     fun vodStreams(): List<Movie> =
         streamList(
             "get_vod_streams",
-            setOf("stream_id", "name", "stream_icon", "category_id", "container_extension", "rating"),
+            setOf("stream_id", "name", "stream_icon", "category_id", "container_extension", "rating", "plot"),
         ) { f ->
             val id = f.intOf("stream_id") ?: return@streamList null
             Movie(
@@ -111,6 +111,7 @@ class XtreamApi(private val acc: Account) {
                 categoryId = f["category_id"] ?: "",
                 ext = f["container_extension"] ?: "mp4",
                 rating = f["rating"],
+                plot = f["plot"]?.take(PLOT_PREVIEW_CHARS),
             )
         }
 
