@@ -70,7 +70,7 @@ fun HomeTab(
         }
         item {
             Box(
-                Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(24.dp))
+                Modifier.fillMaxWidth().height(250.dp).clip(RoundedCornerShape(24.dp))
                     .background(Brush.linearGradient(listOf(Color(0xFF143C38), Color(0xFF17202A), Color(0xFF10151D)))),
             ) {
                 if (recent?.image?.isNotBlank() == true) {
@@ -167,7 +167,7 @@ private fun HomeShortcut(label: String, icon: androidx.compose.ui.graphics.vecto
 @Composable
 private fun RecentCard(item: Recent, onClick: () -> Unit) {
     Column(Modifier.width(148.dp).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        Box(Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceContainer)) {
+        Box(Modifier.fillMaxWidth().height(218.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceContainer)) {
             if (item.image?.isNotBlank() == true) {
                 AsyncImage(item.image, contentDescription = item.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             }
