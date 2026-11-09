@@ -46,7 +46,7 @@ Con JDK 17, Android SDK (platform 35) y Gradle 8.14: `gradle assembleDebug`.
 
 - Se permite tráfico HTTP sin cifrar porque casi todos los servidores IPTV lo usan.
 - El APK sale firmado con la clave de debug: sirve para instalar y usar, no para publicar en Play Store.
-- Las contraseñas se guardan en el almacenamiento privado de la app (sin copia de seguridad en la nube).
+- Las cuentas y las URL de descargas (que pueden incluir credenciales) se guardan cifradas con una clave de Android Keystore, dentro del almacenamiento privado de la app. Los datos existentes se migran automáticamente al actualizar (sin copia de seguridad en la nube).
 - ExoPlayer no reproduce `.avi`; el resto de contenedores habituales funcionan.
 - Solo reproduce contenido de servicios que tengas contratados legítimamente.
 
@@ -56,3 +56,4 @@ Con JDK 17, Android SDK (platform 35) y Gradle 8.14: `gradle assembleDebug`.
 - La app busca una versión nueva al abrirse (como máximo cada 3 días) y desde el menú ⋮ → *Buscar actualización*.
 - Si hay una nueva, la descarga y abre el instalador de Android (el sistema siempre pide confirmar).
 - Para que funcione hay que crear dos *secrets* en el repo (Settings → Secrets and variables → Actions): `KEYSTORE_BASE64` y `KEYSTORE_PASSWORD`.
+- Cada APK publicado incluye una atestación de procedencia. Para verificarla con GitHub CLI: `gh attestation verify XtreamPlayer.apk -R emasanta66-beep/XtreamPlayer.`.

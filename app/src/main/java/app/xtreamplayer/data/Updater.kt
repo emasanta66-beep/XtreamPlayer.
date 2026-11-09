@@ -73,47 +73,81 @@ class Updater(private val ctx: Context) {
             val assets = json.optJSONArray("assets") ?: return null
             for (i in 0 until assets.length()) {
                 val a = assets.getJSONObject(i)
-                if (a.optString("name").endsWith(".apk")) {
-                    return UpdateInfo(
-                        version = version,
-                        name = json.optString("name").ifBlank { "Versión $version" },
-                        notes = json.optString("body").trim(),
-                        apkUrl = a.getString("browser_download_url"),
-                        sizeBytes = a.optLong("size", 0L),
-                    )
+                if (a.optString("name").equals(APK_ASSET_NAME, ignoreCase = true)) {
+                    val apkUrl = a.optString("browser_download_url")
+                    val size = a.optLong("size", 0L)
+                    if (isTrustedReleaseUrl(apkUrl) && size in 1L..MAX_APK_BYTES) {
+                        return UpdateInfo(
+                            version = version,
+                            name = json.optString("name").ifBlank { "Versión $version" },
+                            notes = json.optString("body").trim(),
+                            apkUrl = apkUrl,
+                            sizeBytes = size,
+                        )
+                    }
                 }
             }
             return null
         }
     }
 
-    /** Descarga el APK a la carpeta de caché de la app. onProgress recibe de 0 a 1. */
+    /** Descarga el APK a caché, limita su tamaño y solo acepta enlaces de Releases de este repo. */
     fun download(info: UpdateInfo, onProgress: (Float) -> Unit): File {
-        val dir = File(ctx.cacheDir, "updates").apply { mkdirs() }
-        dir.listFiles()?.forEach { it.delete() }
-        val file = File(dir, "XtreamPlayer.apk")
+        if (!isTrustedReleaseUrl(info.apkUrl)) throw IOException("Enlace de actualización no confiable")
+        if (info.sizeBytes !in 1L..MAX_APK_BYTES) throw IOException("Tamaño de actualización inválido")
 
-        val req = Request.Builder().url(info.apkUrl).build()
-        http.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-            val body = resp.body ?: throw IOException("Respuesta vacía")
-            val total = body.contentLength().takeIf { it > 0 } ?: info.sizeBytes
-            body.byteStream().use { input ->
-                file.outputStream().use { output ->
-                    val buf = ByteArray(64 * 1024)
-                    var done = 0L
-                    while (true) {
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        output.write(buf, 0, n)
-                        done += n
-                        if (total > 0) onProgress((done.toFloat() / total).coerceIn(0f, 1f))
+        val dir = File(ctx.cacheDir, "updates")
+        if (!dir.exists() && !dir.mkdirs()) throw IOException("No se pudo preparar la descarga")
+        val file = File(dir, APK_ASSET_NAME)
+        val tempFile = File(dir, "$APK_ASSET_NAME.part")
+        tempFile.delete()
+
+        try {
+            val req = Request.Builder().url(info.apkUrl).build()
+            http.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                val body = resp.body ?: throw IOException("Respuesta vacía")
+                val contentLength = body.contentLength()
+                if (contentLength > MAX_APK_BYTES) throw IOException("Actualización demasiado grande")
+                if (contentLength > 0 && contentLength != info.sizeBytes) {
+                    throw IOException("El tamaño de la actualización no coincide")
+                }
+                val total = contentLength.takeIf { it > 0 } ?: info.sizeBytes
+                body.byteStream().use { input ->
+                    tempFile.outputStream().use { output ->
+                        val buf = ByteArray(64 * 1024)
+                        var done = 0L
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            done += n
+                            if (done > MAX_APK_BYTES || done > info.sizeBytes) {
+                                throw IOException("Actualización demasiado grande")
+                            }
+                            output.write(buf, 0, n)
+                            onProgress((done.toFloat() / total).coerceIn(0f, 1f))
+                        }
                     }
                 }
             }
+            if (tempFile.length() != info.sizeBytes) throw IOException("Descarga incompleta")
+            if (file.exists() && !file.delete()) throw IOException("No se pudo reemplazar el APK anterior")
+            if (!tempFile.renameTo(file)) throw IOException("No se pudo finalizar la descarga")
+            return file
+        } catch (e: Exception) {
+            tempFile.delete()
+            throw e
         }
-        if (file.length() == 0L) throw IOException("Descarga vacía")
-        return file
+    }
+
+    private fun isTrustedReleaseUrl(raw: String): Boolean {
+        val uri = Uri.parse(raw)
+        val expectedPrefix = "/$REPO/releases/download/"
+        return uri.scheme == "https" &&
+            uri.host.equals("github.com", ignoreCase = true) &&
+            uri.userInfo == null &&
+            uri.port == -1 &&
+            uri.path?.startsWith(expectedPrefix, ignoreCase = true) == true
     }
 
     /** ¿Android ya permite que esta app instale APKs? (permiso "Instalar apps desconocidas"). */
@@ -139,6 +173,8 @@ class Updater(private val ctx: Context) {
 
     private companion object {
         const val REPO = "emasanta66-beep/XtreamPlayer."
+        const val APK_ASSET_NAME = "XtreamPlayer.apk"
+        const val MAX_APK_BYTES = 150L * 1024 * 1024
         const val KEY_LAST_CHECK = "last_check"
         /** Cada cuánto se busca una actualización al abrir la app: 3 días. */
         val CHECK_EVERY_MS = TimeUnit.DAYS.toMillis(3)
