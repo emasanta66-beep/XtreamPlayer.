@@ -16,16 +16,17 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: 17
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
         with:
           gradle-version: 8.14.3
+          cache-provider: basic
 
       # Si el repositorio tiene el secret KEYSTORE_BASE64, firma con esa clave
       # (así el APK se instala encima de la versión anterior). Si no es válido, usa debug.
@@ -58,7 +59,7 @@ jobs:
             cp app/build/outputs/apk/debug/app-debug.apk XtreamPlayer.apk
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: XtreamPlayer-apk
           path: XtreamPlayer.apk
@@ -69,13 +70,21 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: XtreamPlayer-apk
           path: .
 
-      # Solo este trabajo necesita permiso de escritura para publicar el Release.
+      - name: Generar attestación del APK
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: XtreamPlayer.apk
+
+      # Solo este trabajo necesita permisos para publicar y atestiguar el Release.
       - name: Publicar Release
         env:
           GH_TOKEN: ${{ github.token }}
