@@ -24,6 +24,7 @@ data class Movie(
     val categoryId: String,
     val ext: String,
     val rating: String?,
+    val plot: String? = null,
 )
 
 data class Series(
