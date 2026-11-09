@@ -639,13 +639,6 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                                 vm.chooseVideoMode((videoMode + 1) % videoModes.size)
                             },
                         )
-                        DropdownMenuItem(
-                            text = { Text(if (landscape) "Poner vertical" else "Poner horizontal") },
-                            onClick = {
-                                showMenu = false
-                                vm.playerLandscape = !vm.playerLandscape
-                            },
-                        )
                         if (!item.isLive) {
                             DropdownMenuItem(
                                 text = { Text(if (castBusy) "Enviando…" else "Enviar a TV") },
@@ -761,10 +754,6 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                         }
                     }
                     if (supportsPip) CtlButton({ enterPip() }) { GlyphIcon(Glyph.PIP) }
-                    CtlButton({
-                        poke()
-                        vm.playerLandscape = !vm.playerLandscape
-                    }) { GlyphIcon(Glyph.SCREEN) }
                 }
             }
             Column(
