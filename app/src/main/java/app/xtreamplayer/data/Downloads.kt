@@ -235,14 +235,18 @@ object DownloadCenter {
                 val range = if (resp.code == 206) {
                     val match = Regex("^bytes (\\d+)-(\\d+)/(\\d+|\\*)$")
                         .matchEntire(resp.header("Content-Range").orEmpty())
-                        ?: return "El servidor envió un rango inválido"
+                    if (match == null) {
+                        if (have > 0) file.delete()
+                        return "Rango inválido; se descartó el fragmento. Reanuda la descarga."
+                    }
                     val start = match.groupValues[1].toLongOrNull()
                         ?: return "El servidor envió un rango inválido"
                     val end = match.groupValues[2].toLongOrNull()
                         ?: return "El servidor envió un rango inválido"
                     val total = match.groupValues[3].toLongOrNull()
                     if (start != have || end < start || (total != null && end >= total)) {
-                        return "El rango de descarga no coincide"
+                        if (have > 0) file.delete()
+                        return "Rango incompatible; se descartó el fragmento. Reanuda la descarga."
                     }
                     Triple(start, end, total)
                 } else {
@@ -258,7 +262,8 @@ object DownloadCenter {
                 if (!append) have = 0L
                 val len = body.contentLength()
                 if (range != null && len > 0 && len != range.second - range.first + 1) {
-                    return "La respuesta del servidor llegó incompleta"
+                    if (have > 0) file.delete()
+                    return "Respuesta de rango incompleta; se descartó el fragmento."
                 }
                 val total = range?.third ?: if (len > 0) have + len else 0L
                 val requiredBytes = if (total > have) total - have else len
