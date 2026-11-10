@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +39,7 @@ import app.xtreamplayer.data.XtreamApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.UUID
@@ -130,6 +132,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Descargas (películas y capítulos), compartidas por todas las listas. */
     val downloads get() = DownloadCenter.items
+
+    /** Descargas indexadas por clave, para no recorrer la cola en cada tarjeta. */
+    private val downloadIndex by derivedStateOf { downloads.associateBy { it.key } }
+
+    fun downloadFor(key: String?): DownloadItem? = key?.let { downloadIndex[it] }
 
     /** La interfaz debe pedir el permiso de notificaciones (Android 13+). */
     var askNotifPermission by mutableStateOf(false)
@@ -371,7 +378,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     suspend fun loadSeriesInfo(id: Int): Result<SeriesDetail> {
-        val result = withContext(Dispatchers.IO) { runCatching { api!!.seriesInfo(id) } }
+        val a = api ?: return Result.failure(IOException("No hay una lista abierta"))
+        val result = withContext(Dispatchers.IO) { runCatching { a.seriesInfo(id) } }
         result.onSuccess { seriesCache[id] = it }
         return result
     }
@@ -386,7 +394,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Favoritos ----------
 
-    fun isFav(type: String, id: Int): Boolean = favs.any { it.type == type && it.id == id }
+    /** Índice "tipo:id" para consultar favoritos en O(1) desde cada tarjeta de la lista. */
+    private val favIndex by derivedStateOf {
+        favs.mapTo(HashSet(favs.size)) { "${it.type}:${it.id}" }
+    }
+
+    fun isFav(type: String, id: Int): Boolean = "$type:$id" in favIndex
 
     fun toggleFav(f: Fav) {
         val idx = favs.indexOfFirst { it.type == f.type && it.id == f.id }
@@ -582,8 +595,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    suspend fun loadMovieInfo(id: Int): Result<MovieInfo> =
-        withContext(Dispatchers.IO) { runCatching { api!!.vodInfo(id) } }
+    suspend fun loadMovieInfo(id: Int): Result<MovieInfo> {
+        val a = api ?: return Result.failure(IOException("No hay una lista abierta"))
+        return withContext(Dispatchers.IO) { runCatching { a.vodInfo(id) } }
+    }
 
     fun openSeries(s: Series) {
         stack.add(Screen.SeriesPage(s))
@@ -643,12 +658,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return if (i >= 0) all.getOrNull(i + 1) else null
     }
 
-    /** Reemplaza el reproductor actual por el siguiente capítulo. */
-    fun playNextEpisode(item: PlayItem, next: Episode) {
-        val r = item.recent ?: return
+    /** Reemplaza el reproductor actual por el siguiente capítulo. Devuelve true si se pudo abrir. */
+    fun playNextEpisode(item: PlayItem, next: Episode): Boolean {
+        val r = item.recent ?: return false
         val series = Series(r.seriesId, r.title, r.image, "", null, null)
-        val screen = episodeScreen(series, next) ?: return
+        val screen = episodeScreen(series, next) ?: return false
         if (stack.lastOrNull() is Screen.Player) stack[stack.lastIndex] = screen else stack.add(screen)
+        return true
     }
 
     /** Retoma un elemento de "Continuar viendo" justo donde se dejó. */

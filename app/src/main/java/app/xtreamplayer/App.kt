@@ -25,7 +25,7 @@ class App : Application(), ImageLoaderFactory {
                     })
                     .build()
             }
-            .memoryCache { MemoryCache.Builder(this).maxSizePercent(0.25).build() }
+            .memoryCache { MemoryCache.Builder(this).maxSizePercent(0.20).build() }
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("img_cache"))

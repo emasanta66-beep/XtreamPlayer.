@@ -3,6 +3,7 @@
 package app.xtreamplayer.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -26,9 +28,11 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +40,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,8 +51,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -77,12 +84,13 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
     val isFav = vm.isFav("series", series.id)
 
     Scaffold(
+        containerColor = Palette.Background,
         topBar = {
             TopAppBar(
                 title = { Text(series.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = { vm.back() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Palette.TextPrimary)
                     }
                 },
                 actions = {
@@ -92,10 +100,14 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                         Icon(
                             if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                             contentDescription = "Favorito",
-                            tint = if (isFav) Color(0xFFFF6B81) else MaterialTheme.colorScheme.onSurface,
+                            tint = if (isFav) Palette.Favorite else Palette.TextSecondary,
                         )
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Palette.Background,
+                    titleContentColor = Palette.TextPrimary,
+                ),
             )
         },
     ) { pad ->
@@ -108,13 +120,24 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                 val plot = d.plot ?: series.plot
                 LazyColumn(modifier) {
                     item {
-                        Row(Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.verticalGradient(
+                                        listOf(Palette.HeroTop.copy(alpha = 0.55f), Palette.Background),
+                                    ),
+                                )
+                                .padding(horizontal = 18.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
                             Box(
                                 modifier = Modifier
-                                    .width(100.dp)
-                                    .height(150.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    .width(112.dp)
+                                    .height(168.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Palette.SurfaceHigh)
+                                    .border(1.dp, Palette.Outline, RoundedCornerShape(14.dp)),
                             ) {
                                 AsyncImage(
                                     model = series.cover,
@@ -123,55 +146,105 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
-                            Spacer(Modifier.width(14.dp))
-                            Text(
-                                plot ?: "Sin descripción disponible.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 8,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
+                            Column(
+                                Modifier.weight(1f).padding(top = 4.dp),
+                                verticalArrangement = Arrangement.spacedBy(7.dp),
+                            ) {
+                                Text(
+                                    "SERIE",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Palette.Accent,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                series.rating?.toFloatOrNull()?.takeIf { it > 0f }?.let { score ->
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("★", color = Palette.Star, style = MaterialTheme.typography.labelLarge)
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            String.format(java.util.Locale.ROOT, "%.1f", score),
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = Palette.TextPrimary,
+                                        )
+                                    }
+                                }
+                                Text(
+                                    plot?.replace(Regex("\\s+"), " ")?.trim() ?: "Sin descripción disponible.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Palette.TextSecondary,
+                                    maxLines = 5,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
+
                     val resume = vm.recents.firstOrNull { it.seriesId == series.id }
                     if (resume != null) {
                         item {
                             Button(
                                 onClick = { vm.playRecent(resume) },
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 18.dp, vertical = 4.dp)
+                                    .height(48.dp),
+                                shape = CircleShape,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Palette.Accent,
+                                    contentColor = Palette.OnAccent,
+                                ),
                             ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Continuar ${resume.subtitle}")
+                                Text("Continuar ${resume.subtitle}", style = MaterialTheme.typography.labelLarge)
                             }
                         }
                     }
+
                     item {
                         LazyRow(
-                            contentPadding = PaddingValues(horizontal = 12.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(bottom = 8.dp),
+                            modifier = Modifier.padding(vertical = 8.dp),
                         ) {
-                            items(d.seasons.keys.toList()) { n ->
+                            items(d.seasons.keys.toList(), key = { it }) { n ->
                                 FilterChip(
                                     selected = n == selected,
                                     onClick = { season = n },
-                                    label = { Text("Temporada $n") },
+                                    label = { Text("Temporada $n", maxLines = 1) },
+                                    shape = CircleShape,
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        containerColor = Palette.SurfaceHigh,
+                                        labelColor = Palette.TextSecondary,
+                                        selectedContainerColor = Palette.Accent.copy(alpha = 0.16f),
+                                        selectedLabelColor = Palette.Accent,
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = n == selected,
+                                        borderColor = Palette.OutlineSoft,
+                                        selectedBorderColor = Palette.Accent.copy(alpha = 0.45f),
+                                    ),
                                 )
                             }
                         }
                     }
+
                     if (episodes.isNotEmpty()) {
                         item {
                             OutlinedButton(
                                 onClick = { vm.downloadEpisodes(series, episodes) },
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                            ) { Text("⬇  Descargar temporada $selected") }
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 18.dp, vertical = 4.dp)
+                                    .height(46.dp),
+                                shape = CircleShape,
+                            ) { Text("⬇  Descargar temporada $selected", style = MaterialTheme.typography.labelLarge) }
                         }
                     }
-                    items(episodes) { ep ->
-                        val saved = vm.recents.firstOrNull { it.key == vm.episodeKey(ep) }
+
+                    items(episodes, key = { it.id }) { ep ->
+                        val epKey = vm.episodeKey(ep)
+                        val saved = vm.recents.firstOrNull { it.key == epKey }
                         val progress = saved?.takeIf { it.durationMs > 0 }
                             ?.let { it.positionMs.toFloat() / it.durationMs }
                         Row(
@@ -184,13 +257,14 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                             VideoThumb(
                                 image = ep.image ?: series.cover,
                                 progress = progress,
-                                modifier = Modifier.width(150.dp),
+                                modifier = Modifier.width(146.dp),
                             )
                             Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
-                                    (if (vm.episodeKey(ep) in vm.watched) "✓ " else "") + "E${ep.number} · ${ep.title}",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    (if (epKey in vm.watched) "✓ " else "") + "E${ep.number} · ${ep.title}",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = Palette.TextPrimary,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                 )
@@ -198,34 +272,34 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                                     Text(
                                         ep.duration,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = Palette.TextSecondary,
                                     )
                                 }
                                 if (!ep.plot.isNullOrBlank()) {
                                     Text(
                                         ep.plot,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 3,
+                                        color = Palette.TextSecondary,
+                                        maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                             }
-                            val epKey = vm.episodeKey(ep)
                             DownloadBadge(
-                                d = vm.downloads.firstOrNull { it.key == epKey },
+                                d = vm.downloadFor(epKey),
                                 onStart = { vm.downloadEpisodes(series, listOf(ep)) },
                                 onToggle = { epKey?.let { vm.toggleDownload(it) } },
                                 modifier = Modifier.padding(start = 8.dp),
                             )
                         }
                     }
+
                     if (d.seasons.isEmpty()) {
                         item {
                             Text(
                                 "Esta serie no tiene episodios disponibles.",
                                 modifier = Modifier.padding(24.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = Palette.TextSecondary,
                             )
                         }
                     }
@@ -237,12 +311,20 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("No se pudo cargar la serie: $error", textAlign = TextAlign.Center)
-                Spacer(Modifier.height(12.dp))
+                Text(
+                    "No se pudo cargar la serie",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Palette.TextPrimary,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(error ?: "", textAlign = TextAlign.Center, color = Palette.TextSecondary)
+                Spacer(Modifier.height(14.dp))
                 Button(onClick = { reload++ }) { Text("Reintentar") }
             }
 
-            else -> Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            else -> Box(modifier, contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Palette.Accent, strokeWidth = 3.dp)
+            }
         }
     }
 }

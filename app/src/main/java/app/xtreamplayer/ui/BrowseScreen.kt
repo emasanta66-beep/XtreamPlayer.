@@ -3,6 +3,7 @@
 package app.xtreamplayer.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +23,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -47,6 +47,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -59,11 +60,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -75,6 +78,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -87,16 +91,26 @@ import app.xtreamplayer.data.Movie
 import app.xtreamplayer.data.Recent
 import app.xtreamplayer.data.Series
 import coil.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 @Composable
 fun BrowseScreen(vm: AppViewModel) {
-    // Pestaña inicial: "Películas". "Continuar" queda al final, después de "Favoritos".
+    // Pestaña inicial: "Inicio".
     var tab by rememberSaveable { mutableIntStateOf(TAB_HOME) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     val titles = listOf("Inicio", "En vivo", "Películas", "Series", "Favoritos", "Continuar", "Descargas")
+
+    // La búsqueda espera a que el usuario deje de escribir: con catálogos de decenas de miles
+    // de elementos, filtrar en cada tecla se nota.
+    val debouncedQuery by produceState(initialValue = query, query) {
+        if (query.isNotEmpty()) delay(220)
+        value = query
+    }
 
     LaunchedEffect(tab) {
         when (tab) {
@@ -110,42 +124,56 @@ fun BrowseScreen(vm: AppViewModel) {
     }
 
     Scaffold(
+        containerColor = Palette.Background,
         topBar = {
             Column {
                 TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Palette.Background,
+                        titleContentColor = Palette.TextPrimary,
+                    ),
                     title = {
                         if (searching) {
                             TextField(
                                 value = query,
                                 onValueChange = { query = it },
-                                placeholder = { Text("Buscar…") },
+                                placeholder = { Text("Buscar en tu lista…", color = Palette.TextTertiary) },
                                 singleLine = true,
+                                shape = CircleShape,
                                 colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedContainerColor = Palette.SurfaceHigh,
+                                    unfocusedContainerColor = Palette.SurfaceHigh,
                                     focusedIndicatorColor = Color.Transparent,
                                     unfocusedIndicatorColor = Color.Transparent,
+                                    focusedTextColor = Palette.TextPrimary,
+                                    unfocusedTextColor = Palette.TextPrimary,
+                                    cursorColor = Palette.Accent,
                                 ),
                                 modifier = Modifier.fillMaxWidth().focusRequester(focus),
                             )
                         } else {
-                            Column {
-                                Text(
-                                    vm.currentAccount?.name ?: "",
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                val info = vm.authInfo
-                                val sub = listOfNotNull(
-                                    info?.status?.takeIf { it.isNotBlank() },
-                                    info?.expires?.let { "vence $it" },
-                                ).joinToString(" · ")
-                                if (sub.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                AccountAvatar(vm.currentAccount?.name)
+                                Spacer(Modifier.width(10.dp))
+                                Column {
                                     Text(
-                                        sub,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        vm.currentAccount?.name ?: "Xtream Player",
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = MaterialTheme.typography.titleMedium,
                                     )
+                                    val info = vm.authInfo
+                                    val sub = listOfNotNull(
+                                        info?.status?.takeIf { it.isNotBlank() },
+                                        info?.expires?.let { "vence $it" },
+                                    ).joinToString(" · ")
+                                    if (sub.isNotBlank()) {
+                                        Text(
+                                            sub,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Palette.TextSecondary,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -157,7 +185,8 @@ fun BrowseScreen(vm: AppViewModel) {
                         }) {
                             Icon(
                                 if (searching) Icons.Default.Close else Icons.Default.Search,
-                                contentDescription = "Buscar",
+                                contentDescription = if (searching) "Cerrar búsqueda" else "Buscar",
+                                tint = Palette.TextPrimary,
                             )
                         }
                         IconButton(onClick = {
@@ -166,10 +195,10 @@ fun BrowseScreen(vm: AppViewModel) {
                                 TAB_MOVIES -> vm.ensureMovies(true)
                                 TAB_SERIES -> vm.ensureSeries(true)
                             }
-                        }) { Icon(Icons.Default.Refresh, contentDescription = "Actualizar") }
+                        }) { Icon(Icons.Default.Refresh, contentDescription = "Actualizar", tint = Palette.TextPrimary) }
                         Box {
                             IconButton(onClick = { menuOpen = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Más opciones")
+                                Icon(Icons.Default.MoreVert, contentDescription = "Más opciones", tint = Palette.TextPrimary)
                             }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                 DropdownMenuItem(
@@ -211,9 +240,28 @@ fun BrowseScreen(vm: AppViewModel) {
                         }
                     },
                 )
-                ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
+                ScrollableTabRow(
+                    selectedTabIndex = tab,
+                    edgePadding = 12.dp,
+                    containerColor = Palette.Background,
+                    contentColor = Palette.Accent,
+                    divider = {},
+                ) {
                     titles.forEachIndexed { i, t ->
-                        Tab(selected = tab == i, onClick = { tab = i }, text = { Text(t, maxLines = 1) })
+                        Tab(
+                            selected = tab == i,
+                            onClick = { tab = i },
+                            text = {
+                                Text(
+                                    t,
+                                    maxLines = 1,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = if (tab == i) FontWeight.SemiBold else FontWeight.Medium,
+                                )
+                            },
+                            selectedContentColor = Palette.Accent,
+                            unselectedContentColor = Palette.TextSecondary,
+                        )
                     }
                 }
             }
@@ -221,13 +269,21 @@ fun BrowseScreen(vm: AppViewModel) {
     ) { pad ->
         val modifier = Modifier.padding(pad).fillMaxSize()
         when (tab) {
-            TAB_HOME -> HomeTab(vm, onContinue = { tab = TAB_CONTINUE }, onMovies = { tab = TAB_MOVIES }, onLive = { tab = TAB_LIVE }, onSeries = { tab = TAB_SERIES }, modifier = modifier)
-            TAB_LIVE -> LiveTab(vm, query, modifier)
-            TAB_MOVIES -> MoviesTab(vm, query, modifier)
-            TAB_SERIES -> SeriesTab(vm, query, modifier)
-            TAB_FAVS -> FavTab(vm, query, modifier)
-            TAB_CONTINUE -> ContinueTab(vm, query, modifier)
-            else -> DownloadsTab(vm, query, modifier)
+            TAB_HOME -> HomeTab(
+                vm,
+                onContinue = { tab = TAB_CONTINUE },
+                onMovies = { tab = TAB_MOVIES },
+                onLive = { tab = TAB_LIVE },
+                onSeries = { tab = TAB_SERIES },
+                onDownloads = { tab = TAB_DOWNLOADS },
+                modifier = modifier,
+            )
+            TAB_LIVE -> LiveTab(vm, debouncedQuery, modifier)
+            TAB_MOVIES -> MoviesTab(vm, debouncedQuery, modifier)
+            TAB_SERIES -> SeriesTab(vm, debouncedQuery, modifier)
+            TAB_FAVS -> FavTab(vm, debouncedQuery, modifier)
+            TAB_CONTINUE -> ContinueTab(vm, debouncedQuery, modifier)
+            else -> DownloadsTab(vm, debouncedQuery, modifier)
         }
     }
 }
@@ -239,6 +295,27 @@ private const val TAB_MOVIES = 2
 private const val TAB_SERIES = 3
 private const val TAB_FAVS = 4
 private const val TAB_CONTINUE = 5
+private const val TAB_DOWNLOADS = 6
+
+@Composable
+private fun AccountAvatar(name: String?) {
+    val initial = name?.trim()?.firstOrNull()?.uppercaseChar() ?: 'X'
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(Palette.Accent.copy(alpha = 0.16f))
+            .border(1.dp, Palette.Accent.copy(alpha = 0.4f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            initial.toString(),
+            style = MaterialTheme.typography.titleMedium,
+            color = Palette.Accent,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
 
 // ---------------------------------------------------------------- Pestañas
 
@@ -264,7 +341,7 @@ private fun ContinueTab(vm: AppViewModel, query: String, modifier: Modifier) {
 
 @Composable
 private fun ContinueRow(r: Recent, onClick: () -> Unit, onRemove: () -> Unit) {
-    val progress = if (r.durationMs > 0) r.positionMs.toFloat() / r.durationMs else null
+    val progress = if (r.durationMs > 0) (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f) else null
     val remainingMin = ((r.durationMs - r.positionMs) / 60_000L).coerceAtLeast(1L)
     Row(
         modifier = Modifier
@@ -273,24 +350,30 @@ private fun ContinueRow(r: Recent, onClick: () -> Unit, onRemove: () -> Unit) {
             .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        VideoThumb(image = r.image, progress = progress, modifier = Modifier.width(150.dp))
+        VideoThumb(image = r.image, progress = progress, modifier = Modifier.width(148.dp))
         Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(r.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                r.title,
+                style = MaterialTheme.typography.titleSmall,
+                color = Palette.TextPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 listOf(
                     r.subtitle.ifEmpty { "Película" },
                     "quedan $remainingMin min",
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Palette.TextSecondary,
             )
         }
         IconButton(onClick = onRemove) {
             Icon(
                 Icons.Default.Close,
                 contentDescription = "Quitar de Continuar viendo",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = Palette.TextTertiary,
             )
         }
     }
@@ -312,13 +395,11 @@ private fun LiveTab(vm: AppViewModel, query: String, modifier: Modifier) {
             s.catChosen = true
             s.selectedCat = it
         }
-        val list = remember(s.items, s.selectedCat, query) {
-            filterBy(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
-        }
+        val list = filteredItems(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
         if (list.isEmpty()) {
             EmptyHint("Sin resultados")
         } else {
-            LazyColumn(Modifier.fillMaxSize()) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
                 items(list, key = { it.id }) { ch ->
                     ListRow(
                         title = ch.name,
@@ -341,52 +422,39 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
             s.catChosen = true
             s.selectedCat = it
         }
-        val list = remember(s.items, s.selectedCat, query) {
-            filterBy(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
-        }
+        val list = filteredItems(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
         if (list.isEmpty()) {
             EmptyHint("Sin resultados")
         } else {
-            val categoryNames = remember(s.cats) { s.cats.associate { it.id to it.name } }
-            val shelves = remember(list) { list.groupBy { it.categoryId } }
             val ctx = LocalContext.current
-            LaunchedEffect(list) { prefetchImages(ctx, list.take(60).map { it.icon }) }
+            LaunchedEffect(list) { prefetchImages(ctx, list.take(24).map { it.icon }) }
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(104.dp),
+                columns = GridCells.Adaptive(108.dp),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 22.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                shelves.forEach { (categoryId, movies) ->
-                    item(key = "heading-$categoryId", span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            categoryNames[categoryId] ?: "Películas",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
-                        )
-                    }
-                    items(movies, key = { "$categoryId-${it.id}" }) { m ->
-                        Poster(
-                            title = m.name,
-                            image = m.icon,
-                            metadata = movieMetadata(m.name, m.rating),
-                            progress = vm.movieProgress(m.id),
-                            watched = vm.isMovieWatched(m.id),
-                            modifier = Modifier.fillMaxWidth(),
-                            fav = vm.isFav("movie", m.id),
-                            onClick = { vm.openMovie(m) },
-                            onFav = { vm.toggleFav(Fav("movie", m.id, m.name, m.icon, m.ext)) },
-                            download = {
-                                val key = vm.currentAccount?.let { "${it.id}:movie:${m.id}" }
-                                DownloadBadge(
-                                    d = vm.downloads.firstOrNull { it.key == key },
-                                    onStart = { vm.downloadMovie(m.id, m.name, m.ext, m.icon) },
-                                    onToggle = { key?.let { vm.toggleDownload(it) } },
-                                )
-                            },
-                        )
-                    }
+                items(list, key = { it.id }) { m ->
+                    val key = vm.currentAccount?.let { "${it.id}:movie:${m.id}" }
+                    Poster(
+                        title = m.name,
+                        image = m.icon,
+                        metadata = movieMetadata(m.name, m.rating),
+                        progress = vm.movieProgress(m.id),
+                        watched = vm.isMovieWatched(m.id),
+                        modifier = Modifier.fillMaxWidth(),
+                        fav = vm.isFav("movie", m.id),
+                        onClick = { vm.openMovie(m) },
+                        onFav = { vm.toggleFav(Fav("movie", m.id, m.name, m.icon, m.ext)) },
+                        download = {
+                            DownloadBadge(
+                                d = vm.downloadFor(key),
+                                onStart = { vm.downloadMovie(m.id, m.name, m.ext, m.icon) },
+                                onToggle = { key?.let { vm.toggleDownload(it) } },
+                            )
+                        },
+                    )
                 }
             }
         }
@@ -401,42 +469,29 @@ private fun SeriesTab(vm: AppViewModel, query: String, modifier: Modifier) {
             s.catChosen = true
             s.selectedCat = it
         }
-        val list = remember(s.items, s.selectedCat, query) {
-            filterBy(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
-        }
+        val list = filteredItems(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
         if (list.isEmpty()) {
             EmptyHint("Sin resultados")
         } else {
-            val categoryNames = remember(s.cats) { s.cats.associate { it.id to it.name } }
-            val shelves = remember(list) { list.groupBy { it.categoryId } }
             val ctx = LocalContext.current
-            LaunchedEffect(list) { prefetchImages(ctx, list.take(60).map { it.cover }) }
+            LaunchedEffect(list) { prefetchImages(ctx, list.take(24).map { it.cover }) }
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(104.dp),
+                columns = GridCells.Adaptive(108.dp),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 22.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                shelves.forEach { (categoryId, seriesList) ->
-                    item(key = "heading-$categoryId", span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            categoryNames[categoryId] ?: "Series",
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
-                        )
-                    }
-                    items(seriesList, key = { "$categoryId-${it.id}" }) { sr ->
-                        Poster(
-                            title = sr.name,
-                            image = sr.cover,
-                            metadata = seriesMetadata(sr.name, sr.rating),
-                            modifier = Modifier.fillMaxWidth(),
-                            fav = vm.isFav("series", sr.id),
-                            onClick = { vm.openSeries(sr) },
-                            onFav = { vm.toggleFav(Fav("series", sr.id, sr.name, sr.cover, "")) },
-                        )
-                    }
+                items(list, key = { it.id }) { sr ->
+                    Poster(
+                        title = sr.name,
+                        image = sr.cover,
+                        metadata = seriesMetadata(sr.name, sr.rating),
+                        modifier = Modifier.fillMaxWidth(),
+                        fav = vm.isFav("series", sr.id),
+                        onClick = { vm.openSeries(sr) },
+                        onFav = { vm.toggleFav(Fav("series", sr.id, sr.name, sr.cover, "")) },
+                    )
                 }
             }
         }
@@ -456,7 +511,7 @@ private fun FavTab(vm: AppViewModel, query: String, modifier: Modifier) {
         }
     } else {
         LazyColumn(modifier) {
-            items(list) { f ->
+            items(list, key = { "${it.type}:${it.id}" }) { f ->
                 ListRow(
                     title = f.name,
                     subtitle = when (f.type) {
@@ -492,7 +547,7 @@ private fun <T> SectionHost(
     Column(modifier) {
         when {
             s.loading && !s.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = Palette.Accent, strokeWidth = 3.dp)
             }
 
             s.error != null && !s.loaded -> Column(
@@ -500,13 +555,30 @@ private fun <T> SectionHost(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("No se pudo cargar: ${s.error}", textAlign = TextAlign.Center)
-                Spacer(Modifier.height(12.dp))
+                Text(
+                    "No se pudo cargar",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Palette.TextPrimary,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    s.error ?: "",
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.TextSecondary,
+                )
+                Spacer(Modifier.height(14.dp))
                 Button(onClick = onRetry) { Text("Reintentar") }
             }
 
             else -> {
-                if (s.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (s.loading) {
+                    LinearProgressIndicator(
+                        Modifier.fillMaxWidth().height(2.dp),
+                        color = Palette.Accent,
+                        trackColor = Color.Transparent,
+                    )
+                }
                 content()
             }
         }
@@ -522,29 +594,51 @@ private fun CategoryRow(
 ) {
     if (cats.isEmpty()) return
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 12.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = 6.dp),
+        modifier = Modifier.padding(vertical = 8.dp),
     ) {
         if (onReorder != null) {
             item {
                 IconButton(onClick = onReorder, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Ordenar categorías")
+                    Icon(
+                        Icons.AutoMirrored.Filled.List,
+                        contentDescription = "Ordenar categorías",
+                        tint = Palette.TextSecondary,
+                    )
                 }
             }
         }
         item {
-            FilterChip(selected = selected == null, onClick = { onSelect(null) }, label = { Text("Todos") })
+            CategoryChip("Todos", selected == null) { onSelect(null) }
         }
-        items(cats) { c ->
-            FilterChip(
-                selected = selected == c.id,
-                onClick = { onSelect(c.id) },
-                label = { Text(c.name, maxLines = 1) },
-            )
+        items(cats, key = { it.id }) { c ->
+            CategoryChip(c.name, selected == c.id) { onSelect(c.id) }
         }
     }
+}
+
+@Composable
+private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, maxLines = 1) },
+        shape = CircleShape,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = Palette.SurfaceHigh,
+            labelColor = Palette.TextSecondary,
+            selectedContainerColor = Palette.Accent.copy(alpha = 0.16f),
+            selectedLabelColor = Palette.Accent,
+        ),
+        border = FilterChipDefaults.filterChipBorder(
+            enabled = true,
+            selected = selected,
+            borderColor = Palette.OutlineSoft,
+            selectedBorderColor = Palette.Accent.copy(alpha = 0.45f),
+        ),
+    )
 }
 
 /** Diálogo para cambiar el orden de las categorías: sube, baja o manda una al principio. */
@@ -562,7 +656,7 @@ private fun CategoryOrderDialog(
                 Text(
                     "Pon tus categorías favoritas primero. El orden se guarda para esta lista.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Palette.TextSecondary,
                 )
                 Spacer(Modifier.height(8.dp))
                 LazyColumn(Modifier.heightIn(max = 420.dp)) {
@@ -603,31 +697,38 @@ private fun ListRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = 16.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .size(54.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Palette.SurfaceHigh)
+                .border(1.dp, Palette.OutlineSoft, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) {
             AsyncImage(
                 model = image,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize().padding(4.dp),
+                modifier = Modifier.fillMaxSize().padding(5.dp),
             )
         }
         Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                color = Palette.TextPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (subtitle != null) {
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = Palette.TextSecondary,
                 )
             }
         }
@@ -635,7 +736,7 @@ private fun ListRow(
             Icon(
                 if (fav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                 contentDescription = "Favorito",
-                tint = if (fav) Color(0xFFFF6B81) else MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (fav) Palette.Favorite else Palette.TextTertiary,
             )
         }
     }
@@ -654,13 +755,15 @@ private fun Poster(
     watched: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
+    val shape = RoundedCornerShape(13.dp)
     Column(modifier.clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .clip(shape)
+                .background(Palette.SurfaceHigh)
+                .border(1.dp, Palette.OutlineSoft, shape),
         ) {
             AsyncImage(
                 model = image,
@@ -671,15 +774,15 @@ private fun Poster(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(4.dp)
+                    .padding(5.dp)
                     .clip(CircleShape)
-                    .background(Color(0x99000000)),
+                    .background(Palette.ScrimSoft),
             ) {
                 Icon(
                     if (fav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = "Favorito",
-                    tint = if (fav) Color(0xFFFF6B81) else Color.White,
-                    modifier = Modifier.clickable(onClick = onFav).padding(6.dp).size(20.dp),
+                    tint = if (fav) Palette.Favorite else Color.White,
+                    modifier = Modifier.clickable(onClick = onFav).padding(5.dp).size(18.dp),
                 )
             }
             if (download != null) {
@@ -689,29 +792,32 @@ private fun Poster(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(4.dp)
+                        .padding(5.dp)
                         .clip(CircleShape)
-                        .background(Color(0x99000000))
+                        .background(Palette.ScrimSoft)
                         .padding(4.dp),
                 ) {
                     Icon(
                         Icons.Default.Check,
                         contentDescription = "Vista",
-                        tint = Color(0xFF4CAF50),
-                        modifier = Modifier.size(16.dp),
+                        tint = Palette.Success,
+                        modifier = Modifier.size(15.dp),
                     )
                 }
             } else if (progress != null && progress > 0f) {
                 LinearProgressIndicator(
                     progress = { progress },
                     modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp),
+                    color = Palette.Accent,
+                    trackColor = Color(0x55000000),
                 )
             }
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(7.dp))
         Text(
             title,
             style = MaterialTheme.typography.titleSmall,
+            color = Palette.TextPrimary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
@@ -719,8 +825,8 @@ private fun Poster(
             Text(
                 metadata,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 4,
+                color = Palette.TextSecondary,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -729,7 +835,7 @@ private fun Poster(
 
 private fun movieMetadata(title: String, rating: String?): String {
     val year = Regex("\\b(19\\d{2}|20\\d{2})\\b").find(title)?.value
-    val score = rating?.takeIf { it.toFloatOrNull()?.let { n -> n > 0f } == true }?.let { "★ $it" }
+    val score = rating?.toFloatOrNull()?.takeIf { it > 0f }?.let { "★ $it" }
     return listOfNotNull(year, score).joinToString(" · ")
 }
 
@@ -741,7 +847,8 @@ private fun EmptyHint(text: String) {
         Text(
             text,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = Palette.TextSecondary,
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(32.dp),
         )
     }
@@ -761,4 +868,24 @@ private fun <T> filterBy(
     return items.filter {
         (cat == null || catOf(it) == cat) && (query.isEmpty() || nameOf(it).contains(query, ignoreCase = true))
     }
+}
+
+/**
+ * Filtra una categoría o un texto de búsqueda sin bloquear el hilo principal.
+ * Con catálogos de decenas de miles de elementos, filtrar en cada recomposición causaba tirones;
+ * aquí el trabajo se hace en [Dispatchers.Default] y se mantiene la lista anterior mientras llega la nueva.
+ */
+@Composable
+private fun <T> filteredItems(
+    items: List<T>,
+    cat: String?,
+    query: String,
+    catOf: (T) -> String,
+    nameOf: (T) -> String,
+): List<T> {
+    val q = query.trim()
+    val result by produceState(initialValue = items, items, cat, q) {
+        value = withContext(Dispatchers.Default) { filterBy(items, cat, q, catOf, nameOf) }
+    }
+    return result
 }

@@ -68,6 +68,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -203,6 +204,8 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var durationMs by remember { mutableStateOf(0L) }
     var seeking by remember { mutableStateOf(false) }
     var seekValue by remember { mutableStateOf(0f) }
+    // Aviso de ±10 s que aparece al hacer doble toque (0 = oculto).
+    var seekFlash by remember { mutableStateOf(0L) }
     var pokes by remember { mutableIntStateOf(0) }
     fun poke() {
         pokes++
@@ -217,6 +220,11 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var castDevice by remember { mutableStateOf<DlnaDevice?>(null) }
     var castResumeAt by remember { mutableStateOf(0L) }
     var castDurationMs by remember { mutableStateOf(0L) }
+
+    // Valores actuales para cuando se cierra el reproductor: el DisposableEffect no se
+    // recrea al entrar o salir de la TV, así que no debe quedarse con el valor inicial.
+    val castDeviceNow by rememberUpdatedState(castDevice)
+    val castBusyNow by rememberUpdatedState(castBusy)
 
     // Tamaño de imagen y orientación (se conservan al cambiar de canal o capítulo).
     val videoMode = vm.videoMode.coerceIn(0, videoModes.lastIndex)
@@ -238,6 +246,13 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         }
     }
     val showOverlay = controlsVisible && !inPip && castDevice == null && !castBusy
+    // El aviso de ±10 s desaparece solo.
+    LaunchedEffect(seekFlash) {
+        if (seekFlash != 0L) {
+            delay(750)
+            seekFlash = 0L
+        }
+    }
     LaunchedEffect(showOverlay) {
         if (!showOverlay) return@LaunchedEffect
         while (true) {
@@ -271,7 +286,8 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         advancing = true
         castScope.launch {
             val next = nextEpisode ?: vm.nextEpisode(item)
-            if (next != null) vm.playNextEpisode(item, next) else advancing = false
+            val opened = next != null && vm.playNextEpisode(item, next)
+            if (!opened) advancing = false
         }
     }
 
@@ -324,7 +340,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             val duration = exoPlayer.duration
             val position = exoPlayer.currentPosition
             // Si se está enviando a la TV, el reproductor local está detenido: no se pisa el avance guardado.
-            if (castDevice == null && !castBusy && item.resumeKey != null &&
+            if (castDeviceNow == null && !castBusyNow && item.resumeKey != null &&
                 duration != C.TIME_UNSET && duration > 0 && position > 0
             ) {
                 vm.saveProgress(item, position, duration)
@@ -510,7 +526,11 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                         detectTapGestures(
                             onTap = { controlsVisible = !controlsVisible },
                             onDoubleTap = { o ->
-                                if (!item.isLive) seekBy(if (o.x < size.width / 2f) -10_000L else 10_000L)
+                                if (!item.isLive) {
+                                    val delta = if (o.x < size.width / 2f) -10_000L else 10_000L
+                                    seekBy(delta)
+                                    seekFlash = delta
+                                }
                             },
                         )
                     }
@@ -523,6 +543,29 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 color = Color.White,
                 strokeWidth = 3.dp,
             )
+        }
+
+        // Aviso rápido de −10 s / +10 s al hacer doble toque.
+        AnimatedVisibility(
+            visible = seekFlash != 0L,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(Palette.Scrim)
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (seekFlash < 0) "−10 s" else "+10 s",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
 
         // Barra superior: volver, canales (en vivo), título, resolución, información y menú ⋮.
@@ -773,7 +816,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                     .displayCutoutPadding()
                     .padding(horizontal = 8.dp, vertical = 8.dp)
                     .clip(RoundedCornerShape(22.dp))
-                    .background(Color(0xE60C0C12))
+                    .background(Palette.Scrim)
                     .pointerInput(Unit) { detectTapGestures { } } // los toques en la barra no la ocultan
                     .padding(horizontal = 8.dp, vertical = 6.dp),
             ) {
@@ -988,7 +1031,7 @@ private fun ChannelPanel(
         modifier = modifier
             .fillMaxHeight()
             .width(320.dp)
-            .background(Color(0xF2101018))
+            .background(Palette.Surface)
             .displayCutoutPadding()
             .pointerInput(Unit) {} // los toques dentro del panel no lo cierran
             .padding(top = 8.dp),
