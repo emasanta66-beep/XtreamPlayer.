@@ -481,7 +481,7 @@ private fun HomePoster(
             if (!image.isNullOrBlank()) {
                 AsyncImage(
                     model = image,
-                    contentDescription = title,
+                    contentDescription = null, // el título lo anuncia el Text de debajo
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -554,7 +554,7 @@ private fun RecentCard(item: Recent, onClick: () -> Unit) {
             if (item.image?.isNotBlank() == true) {
                 AsyncImage(
                     model = item.image,
-                    contentDescription = item.title,
+                    contentDescription = null, // el título lo anuncia el Text de debajo
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
