@@ -137,10 +137,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         DownloadCenter.init(app)
-        // Si ya hay listas guardadas, entra directamente en la última usada (o en la primera).
-        val last = storage.lastAccountId?.let { id -> accounts.firstOrNull { it.id == id } }
-            ?: accounts.firstOrNull()
-        if (last != null) openAccount(last, fromLaunch = true)
     }
 
     // ---------- Navegación ----------
@@ -799,6 +795,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun toast(msg: String) {
         Toast.makeText(getApplication<Application>(), msg, Toast.LENGTH_LONG).show()
+    }
+
+    // Debe ir al final de la clase: abrir la cuenta usa propiedades declaradas más arriba y más abajo, y Kotlin
+    // las inicializa en orden. Con la copia guardada entra al instante (sin esperar red), así que si esto estuviera
+    // antes, esas propiedades todavía serían null y la lista no abriría.
+    init {
+        // Si ya hay listas guardadas, entra directamente en la última usada (o en la primera).
+        val last = storage.lastAccountId?.let { id -> accounts.firstOrNull { it.id == id } }
+            ?: accounts.firstOrNull()
+        if (last != null) openAccount(last, fromLaunch = true)
     }
 
     private companion object {
