@@ -103,15 +103,13 @@ fun DownloadBadge(
     }
 }
 
-private fun mb(bytes: Long): String = "${bytes / (1024 * 1024)} MB"
-
 private fun statusText(d: DownloadItem): String = when (d.status) {
     DlStatus.QUEUED -> "En cola"
     DlStatus.DOWNLOADING ->
-        if (d.total > 0) "Descargando ${(d.bytes * 100 / d.total).coerceIn(0, 100)}% · ${mb(d.bytes)} de ${mb(d.total)}"
-        else "Descargando… ${mb(d.bytes)}"
-    DlStatus.PAUSED -> "En pausa · toca para reanudar (${mb(d.bytes)})"
-    DlStatus.DONE -> "Listo para ver sin conexión · ${mb(d.bytes)}"
+        if (d.total > 0) "Descargando ${(d.bytes * 100 / d.total).coerceIn(0, 100)}% · ${formatMb(d.bytes)} de ${formatMb(d.total)}"
+        else "Descargando… ${formatMb(d.bytes)}"
+    DlStatus.PAUSED -> "En pausa · toca para reanudar (${formatMb(d.bytes)})"
+    DlStatus.DONE -> "Listo para ver sin conexión · ${formatMb(d.bytes)}"
     DlStatus.ERROR -> "Error: ${d.error ?: "no se pudo descargar"} · toca para reintentar"
 }
 
