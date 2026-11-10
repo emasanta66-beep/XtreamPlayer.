@@ -247,7 +247,8 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 18.dp, vertical = 4.dp)
-                                    .height(46.dp),
+                                    .height(46.dp)
+                                    .tvFocus(CircleShape, scale = 1f),
                                 shape = CircleShape,
                             ) {
                                 Text(
@@ -266,6 +267,7 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .tvFocus(RoundedCornerShape(14.dp), scale = 1f)
                                 .clickable { vm.playEpisode(series, ep) }
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.Top,

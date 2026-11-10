@@ -236,10 +236,15 @@ private fun QChoice(label: String, selected: Boolean, onClick: () -> Unit) {
 
 /** Botón circular de la barra de controles del reproductor. */
 @Composable
-internal fun CtlButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+internal fun CtlButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(42.dp)
+            .tvFocus(CircleShape, scale = 1f)
             .clip(CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,

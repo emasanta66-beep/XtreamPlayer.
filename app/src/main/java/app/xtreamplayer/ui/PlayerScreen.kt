@@ -19,6 +19,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
@@ -40,7 +41,15 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -189,6 +198,20 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     }
     val qualityOptions = remember(tracks, context) { tracks.qualityOptions(context) }
 
+    // D-pad / mando de TV: el reproductor recibe las teclas cuando no hay un botón con el foco.
+    val playerFocus = remember { FocusRequester() }
+    val topBarFocus = remember { FocusRequester() }
+    val bottomBarFocus = remember { FocusRequester() }
+    var playerFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(120)
+        runCatching { playerFocus.requestFocus() }
+    }
+    // Al ocultarse los controles, el foco vuelve al reproductor para que el D-pad siga funcionando.
+    LaunchedEffect(controlsVisible) {
+        if (!controlsVisible) runCatching { playerFocus.requestFocus() }
+    }
+
     // Enviar películas y episodios a una TV DLNA (la mayoría de LG son compatibles).
     val castScope = rememberCoroutineScope()
     val dlna = remember(context) { DlnaClient(context.applicationContext) }
@@ -207,12 +230,25 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     val videoMode = vm.videoMode.coerceIn(0, videoModes.lastIndex)
     val landscape = vm.playerLandscape
 
-    // â­ pasa al canal o capítulo siguiente; en vivo, â® al canal anterior.
+    // El botón ⏭ pasa al canal o capítulo siguiente; en vivo, ⏮ al canal anterior.
     fun seekBy(deltaMs: Long) {
         val d = exoPlayer.duration
         val t = exoPlayer.currentPosition + deltaMs
         exoPlayer.seekTo(if (d != C.TIME_UNSET && d > 0) t.coerceIn(0L, d) else t.coerceAtLeast(0L))
         poke()
+    }
+
+    fun togglePlay() {
+        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+    }
+
+    fun showControls() {
+        controlsVisible = true
+        poke()
+    }
+
+    fun playNext() {
+        nextChannel?.let { vm.switchChannel(it) } ?: nextEpisode?.let { vm.playNextEpisode(item, it) }
     }
 
     /** Brillo de la ventana (0.05..1). No toca el brillo del sistema: solo dura mientras se ve el reproductor. */
@@ -536,6 +572,81 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         Modifier
             .fillMaxSize()
             .background(Color.Black)
+            // Atajos de D-pad y de mando de TV (OK, flechas, play/pausa, siguiente/anterior).
+            // Va en la raíz para que también funcionen con el foco en un botón de las barras.
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                // Los diálogos y el panel de canales navegan con sus propias teclas.
+                if (showMenu || showTracks || showQuality || showChannels || showCast) {
+                    return@onPreviewKeyEvent false
+                }
+                when (event.key) {
+                    Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
+                        togglePlay()
+                        true
+                    }
+                    Key.MediaNext -> {
+                        if (nextChannel == null && nextEpisode == null) false else {
+                            playNext()
+                            true
+                        }
+                    }
+                    Key.MediaPrevious -> {
+                        val prev = prevChannel
+                        if (prev == null) false else {
+                            vm.switchChannel(prev)
+                            true
+                        }
+                    }
+                    Key.Menu -> {
+                        showMenu = true
+                        true
+                    }
+                    else -> {
+                        // Con los controles visibles y un botón enfocado, las flechas navegan por los botones.
+                        if (controlsVisible && !playerFocused) return@onPreviewKeyEvent false
+                        when (event.key) {
+                            Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
+                                if (controlsVisible) togglePlay() else showControls()
+                                true
+                            }
+                            Key.DirectionLeft -> {
+                                showControls()
+                                if (!item.isLive) {
+                                    seekBy(-10_000L)
+                                    seekFlash = -10_000L
+                                }
+                                true
+                            }
+                            Key.DirectionRight -> {
+                                showControls()
+                                if (!item.isLive) {
+                                    seekBy(10_000L)
+                                    seekFlash = 10_000L
+                                }
+                                true
+                            }
+                            Key.DirectionUp -> {
+                                if (controlsVisible) {
+                                    runCatching { topBarFocus.requestFocus() }
+                                } else {
+                                    showControls()
+                                }
+                                true
+                            }
+                            Key.DirectionDown -> {
+                                if (controlsVisible) {
+                                    runCatching { bottomBarFocus.requestFocus() }
+                                } else {
+                                    showControls()
+                                }
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                }
+            }
             .pointerInput(Unit) {} // evita que los toques lleguen a la pantalla de debajo
     ) {
         AndroidView(
@@ -561,6 +672,9 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             Box(
                 Modifier
                     .fillMaxSize()
+                    .focusRequester(playerFocus)
+                    .onFocusChanged { playerFocused = it.isFocused }
+                    .focusable()
                     // Arrastrar en vertical: mitad izquierda brillo, mitad derecha volumen.
                     .pointerInput(Unit) {
                         var mode = 0
@@ -658,6 +772,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 onCycleVideoMode = { vm.chooseVideoMode((videoMode + 1) % videoModes.size) },
                 onCast = { showCast = true },
                 onPoke = { poke() },
+                backFocus = topBarFocus,
             )
         }
 
@@ -707,6 +822,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 onCycleSpeed = { speedIndex = (speedIndex + 1) % speeds.size },
                 onPip = { enterPip() },
                 onPoke = { poke() },
+                playPauseFocus = bottomBarFocus,
             )
         }
 

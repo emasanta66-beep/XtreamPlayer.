@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Banner del lanzador de Android TV (320x180). Fondo oscuro con la identidad de la app. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+
+    <!-- Fondo -->
+    <path
+        android:fillColor="#080A0E"
+        android:pathData="M0,0h320v180h-320z" />
+
+    <!-- Halo suave de acento -->
+    <path
+        android:fillColor="#0E2B27"
+        android:pathData="M0,180 L320,180 L320,96 C250,150 120,150 0,104 Z" />
+
+    <!-- Cuadro del reproductor -->
+    <path
+        android:fillColor="#10141B"
+        android:pathData="M40,42h104a12,12 0 0 1 12,12v72a12,12 0 0 1 -12,12h-104a12,12 0 0 1 -12,-12v-72a12,12 0 0 1 12,-12z" />
+    <path
+        android:fillColor="#232C39"
+        android:pathData="M40,42h104a12,12 0 0 1 12,12v4h-128v-4a12,12 0 0 1 12,-12z" />
+
+    <!-- Círculo de reproducción -->
+    <path
+        android:fillColor="#2FD9B7"
+        android:pathData="M92,66m-20,0a20,20 0 1 0 40,0a20,20 0 1 0 -40,0" />
+    <path
+        android:fillColor="#032B23"
+        android:pathData="M86,56 L108,66 L86,76 Z" />
+
+    <!-- Filas de la lista -->
+    <path
+        android:fillColor="#1E2632"
+        android:pathData="M176,52h104a6,6 0 0 1 0,12h-104a6,6 0 0 1 0,-12z" />
+    <path
+        android:fillColor="#1E2632"
+        android:pathData="M176,78h84a6,6 0 0 1 0,12h-84a6,6 0 0 1 0,-12z" />
+    <path
+        android:fillColor="#2FD9B7"
+        android:pathData="M176,104h64a6,6 0 0 1 0,12h-64a6,6 0 0 1 0,-12z" />
+    <path
+        android:fillColor="#1E2632"
+        android:pathData="M176,130h92a6,6 0 0 1 0,12h-92a6,6 0 0 1 0,-12z" />
+</vector>

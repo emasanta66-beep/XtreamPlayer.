@@ -105,6 +105,15 @@ fun BrowseScreen(vm: AppViewModel) {
     var query by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
+    // En Android TV el foco debe empezar en la barra de pestañas para poder moverse con el D-pad.
+    val tv = rememberIsTelevision()
+    val startFocus = remember { FocusRequester() }
+    LaunchedEffect(tv) {
+        if (tv) {
+            delay(150)
+            runCatching { startFocus.requestFocus() }
+        }
+    }
     val titles = listOf(
         R.string.nav_home,
         R.string.nav_live,
@@ -288,6 +297,7 @@ fun BrowseScreen(vm: AppViewModel) {
                         Tab(
                             selected = tab == i,
                             onClick = { tab = i },
+                            modifier = if (i == 0) Modifier.focusRequester(startFocus) else Modifier,
                             text = {
                                 Text(
                                     stringResource(t),
@@ -383,6 +393,7 @@ private fun ContinueRow(r: Recent, onClick: () -> Unit, onRemove: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .tvFocus(RoundedCornerShape(14.dp), scale = 1f)
             .clickable(onClick = onClick)
             .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -661,6 +672,7 @@ private fun CategoryChip(label: String, selected: Boolean, onClick: () -> Unit) 
     FilterChip(
         selected = selected,
         onClick = onClick,
+        modifier = Modifier.tvFocus(CircleShape, scale = 1f),
         label = { Text(label, maxLines = 1) },
         shape = CircleShape,
         colors = FilterChipDefaults.filterChipColors(
@@ -741,6 +753,7 @@ private fun ListRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .tvFocus(RoundedCornerShape(14.dp), scale = 1f)
             .clickable(onClick = onClick)
             .padding(start = 16.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -801,7 +814,7 @@ private fun Poster(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(13.dp)
-    Column(modifier.clickable(onClick = onClick)) {
+    Column(modifier.tvFocus(shape).clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()

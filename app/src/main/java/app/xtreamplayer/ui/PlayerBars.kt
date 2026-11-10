@@ -42,6 +42,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import app.xtreamplayer.R
 import app.xtreamplayer.data.EpgItem
 import java.text.SimpleDateFormat
@@ -71,6 +73,7 @@ internal fun PlayerTopBar(
     onCast: () -> Unit,
     onPoke: () -> Unit,
     modifier: Modifier = Modifier,
+    backFocus: FocusRequester? = null,
 ) {
     Row(
         modifier = modifier
@@ -80,7 +83,12 @@ internal fun PlayerTopBar(
             .padding(horizontal = 4.dp, vertical = 8.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        IconButton(onClick = onBack) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .tvFocus(CircleShape, scale = 1f)
+                .then(if (backFocus != null) Modifier.focusRequester(backFocus) else Modifier),
+        ) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = stringResource(R.string.common_back),
@@ -91,6 +99,7 @@ internal fun PlayerTopBar(
             Row(
                 modifier = Modifier
                     .padding(top = 6.dp, end = 8.dp)
+                    .tvFocus(RoundedCornerShape(18.dp), scale = 1f)
                     .clip(RoundedCornerShape(18.dp))
                     .background(Color(0x66000000))
                     .clickable {
@@ -153,6 +162,7 @@ internal fun PlayerTopBar(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .padding(top = 10.dp, end = 4.dp)
+                    .tvFocus(RoundedCornerShape(6.dp), scale = 1f)
                     .clip(RoundedCornerShape(6.dp))
                     .background(Color(0x66000000))
                     .clickable {
@@ -162,17 +172,23 @@ internal fun PlayerTopBar(
                     .padding(horizontal = 8.dp, vertical = 3.dp),
             )
         }
-        IconButton(onClick = {
-            onPoke()
-            onQuality()
-        }) {
+        IconButton(
+            onClick = {
+                onPoke()
+                onQuality()
+            },
+            modifier = Modifier.tvFocus(CircleShape, scale = 1f),
+        ) {
             Icon(Icons.Default.Info, contentDescription = stringResource(R.string.player_quality), tint = Color.White)
         }
         Box {
-            IconButton(onClick = {
-                onPoke()
-                onMenuOpenChange(true)
-            }) {
+            IconButton(
+                onClick = {
+                    onPoke()
+                    onMenuOpenChange(true)
+                },
+                modifier = Modifier.tvFocus(CircleShape, scale = 1f),
+            ) {
                 Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.common_more), tint = Color.White)
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { onMenuOpenChange(false) }) {
@@ -251,6 +267,7 @@ internal fun PlayerBottomBar(
     onPip: () -> Unit,
     onPoke: () -> Unit,
     modifier: Modifier = Modifier,
+    playPauseFocus: FocusRequester? = null,
 ) {
     val wide = LocalConfiguration.current.screenWidthDp >= 600
 
@@ -262,10 +279,13 @@ internal fun PlayerBottomBar(
                     onPrevChannel()
                 }) { GlyphIcon(Glyph.PREV) }
             }
-            CtlButton({
-                onPoke()
-                onPlayPause()
-            }) { GlyphIcon(if (isPlaying) Glyph.PAUSE else Glyph.PLAY, size = 30) }
+            CtlButton(
+                onClick = {
+                    onPoke()
+                    onPlayPause()
+                },
+                modifier = if (playPauseFocus != null) Modifier.focusRequester(playPauseFocus) else Modifier,
+            ) { GlyphIcon(if (isPlaying) Glyph.PAUSE else Glyph.PLAY, size = 30) }
             if (!isLive) {
                 CtlButton({ onSeek(-10_000L) }) { GlyphIcon(Glyph.BACK10) }
                 CtlButton({ onSeek(10_000L) }) { GlyphIcon(Glyph.FWD10) }

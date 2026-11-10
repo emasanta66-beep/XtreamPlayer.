@@ -326,6 +326,7 @@ private fun HeroCard(
                 Button(
                     onClick = onPlay,
                     shape = CircleShape,
+                    modifier = Modifier.tvFocus(CircleShape, scale = 1f),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Palette.Accent,
                         contentColor = Palette.OnAccent,
@@ -348,6 +349,7 @@ private fun HeroCard(
                     style = MaterialTheme.typography.labelLarge,
                     color = Color(0xE6FFFFFF),
                     modifier = Modifier
+                        .tvFocus(CircleShape, scale = 1f)
                         .clip(CircleShape)
                         .border(1.dp, Color(0x33FFFFFF), CircleShape)
                         .clickable(onClick = onExplore)
@@ -389,6 +391,7 @@ private fun QuickCard(
 ) {
     Column(
         modifier = modifier
+            .tvFocus(RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(Palette.SurfaceHigh)
             .border(1.dp, Palette.OutlineSoft, RoundedCornerShape(18.dp))
@@ -427,6 +430,7 @@ private fun SectionHeader(title: String, onSeeAll: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .tvFocus(RoundedCornerShape(12.dp), scale = 1f)
             .clickable(onClick = onSeeAll)
             .padding(horizontal = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -463,7 +467,7 @@ private fun HomePoster(
 ) {
     val shape = RoundedCornerShape(14.dp)
     Column(
-        modifier = Modifier.width(132.dp).clickable(onClick = onClick),
+        modifier = Modifier.width(132.dp).tvFocus(shape).clickable(onClick = onClick),
         verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         Box(
@@ -536,7 +540,7 @@ private fun RecentCard(item: Recent, onClick: () -> Unit) {
         null
     }
     Column(
-        modifier = Modifier.width(216.dp).clickable(onClick = onClick),
+        modifier = Modifier.width(216.dp).tvFocus(shape).clickable(onClick = onClick),
         verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         Box(

@@ -171,7 +171,11 @@ fun MovieScreen(vm: AppViewModel, movie: Movie) {
             Spacer(Modifier.height(20.dp))
             Button(
                 onClick = { vm.playMovie(movie.id, movie.name, movie.ext, movie.icon) },
-                modifier = Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 18.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .padding(horizontal = 18.dp)
+                    .tvFocus(CircleShape, scale = 1f),
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Palette.Accent,
