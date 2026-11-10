@@ -370,7 +370,7 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
                         Poster(
                             title = m.name,
                             image = m.icon,
-                            metadata = movieMetadata(m.name, m.rating, m.plot),
+                            metadata = movieMetadata(m.name, m.rating),
                             progress = vm.movieProgress(m.id),
                             watched = vm.isMovieWatched(m.id),
                             modifier = Modifier.fillMaxWidth(),
@@ -430,7 +430,7 @@ private fun SeriesTab(vm: AppViewModel, query: String, modifier: Modifier) {
                         Poster(
                             title = sr.name,
                             image = sr.cover,
-                            metadata = seriesMetadata(sr.rating, sr.plot),
+                            metadata = seriesMetadata(sr.name, sr.rating),
                             modifier = Modifier.fillMaxWidth(),
                             fav = vm.isFav("series", sr.id),
                             onClick = { vm.openSeries(sr) },
@@ -727,23 +727,13 @@ private fun Poster(
     }
 }
 
-/** Algunos proveedores mandan la sinopsis con "\\n" escrito literalmente; se limpia para mostrarla como texto normal. */
-private fun cleanPlot(plot: String?): String? =
-    plot?.replace("\\r", " ")?.replace("\\n", " ")?.replace(Regex("\\s+"), " ")?.trim()?.takeIf { it.isNotBlank() }
-
-private fun movieMetadata(title: String, rating: String?, plot: String?): String {
+private fun movieMetadata(title: String, rating: String?): String {
     val year = Regex("\\b(19\\d{2}|20\\d{2})\\b").find(title)?.value
     val score = rating?.takeIf { it.toFloatOrNull()?.let { n -> n > 0f } == true }?.let { "★ $it" }
-    val details = listOfNotNull(year, score).joinToString(" · ")
-    val description = cleanPlot(plot)?.take(76)
-    return listOfNotNull(details.takeIf { it.isNotBlank() }, description).joinToString("\n")
+    return listOfNotNull(year, score).joinToString(" · ")
 }
 
-private fun seriesMetadata(rating: String?, plot: String?): String {
-    val score = rating?.takeIf { it.toFloatOrNull()?.let { n -> n > 0f } == true }?.let { "★ $it" }
-    val description = cleanPlot(plot)?.take(72)
-    return listOfNotNull(score, description).joinToString(" · ")
-}
+private fun seriesMetadata(title: String, rating: String?): String = movieMetadata(title, rating)
 
 @Composable
 private fun EmptyHint(text: String) {
