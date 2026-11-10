@@ -2,10 +2,14 @@ package app.xtreamplayer.ui
 
 import android.app.Activity
 import android.app.PictureInPictureParams
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.util.Rational
 import android.view.View
 import android.widget.Toast
@@ -40,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -81,6 +86,7 @@ import kotlin.math.roundToInt
 fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
+    val audio = remember(context) { context.getSystemService(AudioManager::class.java) }
 
     var error by remember { mutableStateOf<String?>(null) }
     var epg by remember { mutableStateOf<List<EpgItem>>(emptyList()) }
@@ -152,7 +158,12 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var showMenu by remember { mutableStateOf(false) }
     var showQuality by remember { mutableStateOf(false) }
     var qualityAuto by remember { mutableStateOf(true) }
-    var muted by remember { mutableStateOf(false) }
+    var muted by remember {
+        mutableStateOf(
+            audio.isStreamMute(AudioManager.STREAM_MUSIC) ||
+                audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0,
+        )
+    }
     var isPlaying by remember { mutableStateOf(false) }
     var buffering by remember { mutableStateOf(true) }
     var videoW by remember { mutableIntStateOf(0) }
@@ -212,11 +223,35 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         }
     }
 
-    /** Volumen del reproductor; si se baja a cero se marca como silenciado. */
+    /** Volumen multimedia del sistema (0..1), el mismo que mueven los botones físicos. */
+    fun musicVolume(): Float {
+        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        return audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max
+    }
+
+    /** Ajusta el volumen multimedia del sistema; a cero se marca como silenciado. */
     fun applyVolume(value: Float) {
-        val level = value.coerceIn(0f, 1f)
-        exoPlayer.volume = level
-        muted = level <= 0f
+        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        val index = (value.coerceIn(0f, 1f) * max).roundToInt()
+        audio.setStreamVolume(AudioManager.STREAM_MUSIC, index, 0)
+        muted = index == 0
+    }
+
+    // Mantiene el icono de silencio al día aunque el volumen se cambie con los botones físicos.
+    DisposableEffect(audio) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                muted = audio.isStreamMute(AudioManager.STREAM_MUSIC) ||
+                    audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0
+            }
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter("android.media.VOLUME_CHANGED_ACTION"),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
 
     // Controles propios: se ocultan solos a los 4 s mientras se reproduce.
@@ -519,10 +554,15 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                     // Arrastrar en vertical: mitad izquierda brillo, mitad derecha volumen.
                     .pointerInput(Unit) {
                         var mode = 0
+                        // El volumen se cuantiza por pasos (1/15); se acumula en continuo para no perder el gesto.
+                        var startVolume = 0f
                         detectVerticalDragGestures(
                             onDragStart = { offset ->
                                 mode = if (offset.x < size.width / 2f) 1 else 2
+                                if (mode == 2) startVolume = musicVolume()
                             },
+                            onDragEnd = { gestureVisible = false },
+                            onDragCancel = { gestureVisible = false },
                         ) { change, dragAmount ->
                             change.consume()
                             val delta = -dragAmount / size.height.toFloat()
@@ -533,9 +573,10 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                                     gestureFraction = brightness
                                 }
                                 2 -> {
-                                    applyVolume(exoPlayer.volume + delta)
-                                    gestureLabel = "Volumen ${(exoPlayer.volume * 100).roundToInt()}%"
-                                    gestureFraction = exoPlayer.volume
+                                    startVolume = (startVolume + delta).coerceIn(0f, 1f)
+                                    applyVolume(startVolume)
+                                    gestureLabel = "Volumen ${(startVolume * 100).roundToInt()}%"
+                                    gestureFraction = startVolume
                                 }
                             }
                             if (mode != 0) gestureVisible = true
@@ -642,8 +683,9 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                     seeking = false
                 },
                 onMute = {
-                    muted = !muted
-                    exoPlayer.volume = if (muted) 0f else 1f
+                    audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, 0)
+                    muted = audio.isStreamMute(AudioManager.STREAM_MUSIC) ||
+                        audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0
                 },
                 onTracks = { showTracks = true },
                 onCycleSpeed = { speedIndex = (speedIndex + 1) % speeds.size },
