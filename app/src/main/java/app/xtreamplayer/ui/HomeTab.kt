@@ -157,25 +157,34 @@ fun HomeTab(
                 }
             }
         }
-        if (newMovies.isNotEmpty()) {
+        // Las dos filas reservan su lugar desde el principio (con cuadros grises) para que nada se mueva al cargar.
+        if (newMovies.isNotEmpty() || (!vm.movies.loaded && vm.movies.error == null)) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ShelfHeader("Películas recién agregadas", onMovies)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(newMovies, key = { it.id }) { m ->
-                            ShelfCard(m.name, m.icon, onClick = { vm.openMovie(m) })
+                    if (newMovies.isEmpty()) {
+                        ShelfSkeleton()
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(newMovies, key = { it.id }) { m ->
+                                ShelfCard(m.name, m.icon, onClick = { vm.openMovie(m) })
+                            }
                         }
                     }
                 }
             }
         }
-        if (newSeries.isNotEmpty()) {
+        if (newSeries.isNotEmpty() || (!vm.series.loaded && vm.series.error == null)) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ShelfHeader("Series recién agregadas", onSeries)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(newSeries, key = { it.id }) { sr ->
-                            ShelfCard(sr.name, sr.cover, onClick = { vm.openSeries(sr) })
+                    if (newSeries.isEmpty()) {
+                        ShelfSkeleton()
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(newSeries, key = { it.id }) { sr ->
+                                ShelfCard(sr.name, sr.cover, onClick = { vm.openSeries(sr) })
+                            }
                         }
                     }
                 }
@@ -189,6 +198,24 @@ private fun ShelfHeader(title: String, onSeeAll: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onSeeAll), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
         Text("Ver todo", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+@Composable
+private fun ShelfSkeleton() {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), userScrollEnabled = false) {
+        items(4) {
+            Column(Modifier.width(148.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Box(
+                    Modifier.fillMaxWidth().height(218.dp).clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainer),
+                )
+                Box(
+                    Modifier.fillMaxWidth(0.7f).height(14.dp).clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainer),
+                )
+            }
+        }
     }
 }
 

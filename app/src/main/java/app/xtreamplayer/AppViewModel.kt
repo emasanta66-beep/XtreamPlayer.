@@ -15,6 +15,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.xtreamplayer.data.Account
 import app.xtreamplayer.data.AuthInfo
+import app.xtreamplayer.data.CatalogCache
+import app.xtreamplayer.data.CatalogCodec
 import app.xtreamplayer.data.Category
 import app.xtreamplayer.data.Channel
 import app.xtreamplayer.data.DlStatus
@@ -80,6 +82,7 @@ class Section<T> {
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val storage = Storage(app)
+    private val catalog = CatalogCache(app)
     private var api: XtreamApi? = null
 
     val accounts = mutableStateListOf<Account>().apply { addAll(storage.loadAccounts()) }
@@ -182,6 +185,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 withContext(Dispatchers.IO) { XtreamApi(acc).authenticate() }
                 val idx = accounts.indexOfFirst { it.id == acc.id }
+                // Si cambió el servidor o el usuario, lo guardado ya no corresponde a esta lista.
+                if (idx >= 0 && (accounts[idx].server != acc.server || accounts[idx].username != acc.username)) {
+                    catalog.clear(acc.id)
+                }
                 if (idx >= 0) accounts[idx] = acc else accounts.add(acc)
                 storage.saveAccounts(accounts.toList())
                 onDone()
@@ -194,6 +201,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deleteAccount(acc: Account) {
         accounts.removeAll { it.id == acc.id }
+        catalog.clear(acc.id)
         storage.saveAccounts(accounts.toList())
         if (storage.lastAccountId == acc.id) storage.lastAccountId = accounts.firstOrNull()?.id
     }
@@ -214,34 +222,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val a = XtreamApi(acc)
-                val info = withContext(Dispatchers.IO) { a.authenticate() }
-                api = a
-                currentAccount = acc
-                authInfo = info
-                storage.lastAccountId = acc.id
-                live = Section()
-                movies = Section()
-                series = Section()
-                seriesCache.clear()
-                favs.clear()
-                favs.addAll(storage.loadFavs(acc.id))
-                recents.clear()
-                recents.addAll(storage.loadRecents(acc.id))
-                watched.clear()
-                watched.addAll(storage.loadWatched(acc.id))
-                when {
-                    // Arranque automático: la app queda directamente en la lista, sin cuentas detrás.
-                    fromLaunch -> {
-                        stack.clear()
-                        stack.add(Screen.Browse(acc.id))
+                if (catalog.has(acc.id)) {
+                    // Ya se abrió antes: entra al instante con lo guardado y verifica la cuenta por detrás.
+                    enterAccount(acc, a, null, fromLaunch)
+                    launch {
+                        try {
+                            val info = withContext(Dispatchers.IO) { a.authenticate() }
+                            if (currentAccount?.id == acc.id) authInfo = info
+                        } catch (e: Exception) {
+                            toast("No se pudo verificar la lista: ${errorText(e)}")
+                        }
                     }
-                    // Primera lista añadida desde la pantalla de cuentas.
-                    stack.size == 1 -> stack.add(Screen.Browse(acc.id))
-                    // Cambio de lista: igual que al arrancar, queda solo la pantalla de contenido.
-                    else -> {
-                        stack.clear()
-                        stack.add(Screen.Browse(acc.id))
-                    }
+                } else {
+                    val info = withContext(Dispatchers.IO) { a.authenticate() }
+                    enterAccount(acc, a, info, fromLaunch)
                 }
             } catch (e: Exception) {
                 toast("No se pudo abrir la lista: ${errorText(e)}")
@@ -250,10 +244,43 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun enterAccount(acc: Account, a: XtreamApi, info: AuthInfo?, fromLaunch: Boolean) {
+        api = a
+        currentAccount = acc
+        authInfo = info
+        storage.lastAccountId = acc.id
+        live = Section()
+        movies = Section()
+        series = Section()
+        seriesCache.clear()
+        favs.clear()
+        favs.addAll(storage.loadFavs(acc.id))
+        recents.clear()
+        recents.addAll(storage.loadRecents(acc.id))
+        watched.clear()
+        watched.addAll(storage.loadWatched(acc.id))
+        when {
+            // Arranque automático: la app queda directamente en la lista, sin cuentas detrás.
+            fromLaunch -> {
+                stack.clear()
+                stack.add(Screen.Browse(acc.id))
+            }
+            // Primera lista añadida desde la pantalla de cuentas.
+            stack.size == 1 -> stack.add(Screen.Browse(acc.id))
+            // Cambio de lista: igual que al arrancar, queda solo la pantalla de contenido.
+            else -> {
+                stack.clear()
+                stack.add(Screen.Browse(acc.id))
+            }
+        }
+    }
+
     // ---------- Contenido ----------
 
-    fun ensureLive(force: Boolean = false) =
-        load(live, force, { it.liveCategories() }, { it.liveStreams() }, orderKey = LIVE_ORDER)
+    fun ensureLive(force: Boolean = false) = load(
+        live, force, "live", { it.liveCategories() }, { it.liveStreams() },
+        CatalogCodec::channelFields, CatalogCodec::channelFrom, orderKey = LIVE_ORDER,
+    )
 
     /** Mueve la categoría de En vivo en la posición [from] a la posición [to] y guarda el orden. */
     fun moveLiveCategory(from: Int, to: Int) {
@@ -264,43 +291,74 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         currentAccount?.let { storage.saveCatOrder(it.id, LIVE_ORDER, list.map { c -> c.id }) }
     }
 
-    fun ensureMovies(force: Boolean = false) =
-        load(movies, force, { it.vodCategories() }, { it.vodStreams() })
+    fun ensureMovies(force: Boolean = false) = load(
+        movies, force, "movies", { it.vodCategories() }, { it.vodStreams() },
+        CatalogCodec::movieFields, CatalogCodec::movieFrom,
+    )
 
-    fun ensureSeries(force: Boolean = false) =
-        load(series, force, { it.seriesCategories() }, { it.seriesList() })
+    fun ensureSeries(force: Boolean = false) = load(
+        series, force, "series", { it.seriesCategories() }, { it.seriesList() },
+        CatalogCodec::seriesFields, CatalogCodec::seriesFrom,
+    )
 
+    /** Pone en la sección lo que se va a mostrar y deja elegida la primera categoría si no se eligió otra. */
+    private fun <T> applySection(
+        section: Section<T>,
+        cats: List<Category>,
+        items: List<T>,
+        accountId: String,
+        orderKey: String?,
+    ) {
+        section.cats = if (orderKey != null) applyCatOrder(cats, storage.loadCatOrder(accountId, orderKey)) else cats
+        section.items = items
+        // Abre en la primera categoría (no en "Todos") para que cargue rápido.
+        if (section.selectedCat == null && !section.catChosen) {
+            section.selectedCat = section.cats.firstOrNull()?.id
+        }
+        section.loaded = true
+    }
+
+    /**
+     * Carga una sección. Si hay una copia guardada la muestra al instante y, cuando ya tiene varias horas
+     * (o se pide [force]), la actualiza por detrás con lo que entrega el proveedor.
+     */
     private fun <T> load(
         section: Section<T>,
         force: Boolean,
+        kind: String,
         fetchCats: (XtreamApi) -> List<Category>,
         fetchItems: (XtreamApi) -> List<T>,
+        toFields: (T) -> List<Pair<String, String?>>,
+        fromFields: (Map<String, String>) -> T?,
         orderKey: String? = null,
     ) {
         val a = api ?: return
         if (section.loading) return
         if (section.loaded && !force) return
-        val accountId = currentAccount?.id
+        val accountId = currentAccount?.id ?: return
         section.loading = true
         section.error = null
         viewModelScope.launch {
+            var shown = false
             try {
+                if (!force) {
+                    val cached = withContext(Dispatchers.IO) { catalog.load(accountId, kind, fromFields) }
+                    if (cached != null && cached.items.isNotEmpty()) {
+                        applySection(section, cached.cats, cached.items, accountId, orderKey)
+                        shown = true
+                        section.loading = false
+                        if (System.currentTimeMillis() - cached.savedAt < CATALOG_FRESH_MS) return@launch
+                    }
+                }
                 val (cats, items) = withContext(Dispatchers.IO) { fetchCats(a) to fetchItems(a) }
-                section.cats = if (orderKey != null && accountId != null) {
-                    applyCatOrder(cats, storage.loadCatOrder(accountId, orderKey))
-                } else {
-                    cats
-                }
-                section.items = items
-                // Abre en la primera categoría (no en "Todos") para que cargue rápido.
-                if (section.selectedCat == null && !section.catChosen) {
-                    section.selectedCat = section.cats.firstOrNull()?.id
-                }
-                section.loaded = true
+                if (currentAccount?.id != accountId) return@launch
+                applySection(section, cats, items, accountId, orderKey)
+                withContext(Dispatchers.IO) { catalog.save(accountId, kind, cats, items, toFields) }
             } catch (e: OutOfMemoryError) {
-                section.error = "La lista es demasiado grande para la memoria del teléfono"
+                if (!shown) section.error = "La lista es demasiado grande para la memoria del teléfono"
             } catch (e: Exception) {
-                section.error = errorText(e)
+                // Si ya se está mostrando la copia guardada, un fallo de red al actualizar no se muestra.
+                if (!shown) section.error = errorText(e)
             }
             section.loading = false
         }
@@ -745,6 +803,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val MAX_RECENTS = 30
+        const val CATALOG_FRESH_MS = 6L * 60 * 60 * 1000
         const val LIVE_ORDER = "live"
     }
 }
