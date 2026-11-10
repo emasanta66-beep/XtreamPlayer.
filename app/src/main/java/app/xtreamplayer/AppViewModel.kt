@@ -96,6 +96,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Películas y capítulos que ya se vieron completos (para marcarlos con ✓). */
     val watched = mutableStateListOf<String>()
 
+    /** Índice de vistos para consultar en O(1) desde cada tarjeta, sin recorrer la lista. */
+    private val watchedIndex by derivedStateOf { watched.toHashSet() }
+
     /** Avance (0..1) de una película empezada, o null. */
     fun movieProgress(id: Int): Float? {
         val key = currentAccount?.let { "${it.id}:movie:$id" } ?: return null
@@ -103,7 +106,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return if (r.durationMs > 0) (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f) else null
     }
 
-    fun isMovieWatched(id: Int): Boolean = currentAccount?.let { "${it.id}:movie:$id" in watched } ?: false
+    fun isMovieWatched(id: Int): Boolean = currentAccount?.let { "${it.id}:movie:$id" in watchedIndex } ?: false
 
     /** Idioma de subtítulos que se activa solo al abrir un video (null = el predeterminado). */
     var subtitleLang: String?
@@ -233,7 +236,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             val info = withContext(Dispatchers.IO) { a.authenticate() }
                             if (currentAccount?.id == acc.id) authInfo = info
                         } catch (e: Exception) {
-                            toast(str(R.string.error_verify, errorText(e)))
+                            // Verificación pasiva: sin red se sigue usando la copia guardada y no se avisa.
                         }
                     }
                 } else {
@@ -721,7 +724,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val idx = recents.indexOfFirst { it.key == key }
         if (finished) {
             if (idx >= 0) recents.removeAt(idx)
-            if (key !in watched && watched.add(key)) currentAccount?.let { storage.saveWatched(it.id, watched.toSet()) }
+            if (key !in watchedIndex && watched.add(key)) currentAccount?.let { storage.saveWatched(it.id, watched.toSet()) }
         } else {
             if (positionMs >= 10_000 && watched.remove(key)) {
                 currentAccount?.let { storage.saveWatched(it.id, watched.toSet()) }

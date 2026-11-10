@@ -746,7 +746,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             modifier = Modifier.align(Alignment.Center),
         )
 
-        // Barra superior: volver, canales (en vivo), título, resolución, información y menú â‹®.
+        // Barra superior: volver, canales (en vivo), título, resolución, información y menú.
         AnimatedVisibility(
             visible = showOverlay,
             enter = fadeIn(),

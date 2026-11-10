@@ -79,6 +79,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -814,6 +816,7 @@ private fun Poster(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(13.dp)
+    val favLabel = stringResource(R.string.common_favorite)
     Column(modifier.tvFocus(shape).clickable(onClick = onClick)) {
         Box(
             modifier = Modifier
@@ -829,19 +832,30 @@ private fun Poster(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
+            // Área táctil de 48 dp (mínimo accesible) con el mismo círculo visual de 28 dp.
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(5.dp)
-                    .clip(CircleShape)
-                    .background(Palette.ScrimSoft),
+                    .size(48.dp)
+                    .clickable(onClick = onFav)
+                    .semantics { contentDescription = favLabel },
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    if (fav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = stringResource(R.string.common_favorite),
-                    tint = if (fav) Palette.Favorite else Color.White,
-                    modifier = Modifier.clickable(onClick = onFav).padding(5.dp).size(18.dp),
-                )
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Palette.ScrimSoft),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (fav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = null, // la etiqueta la lleva el área táctil
+                        tint = if (fav) Palette.Favorite else Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
             if (download != null) {
                 Box(Modifier.align(Alignment.BottomEnd).padding(4.dp)) { download() }

@@ -54,6 +54,28 @@ class DownloadService : Service() {
         super.onDestroy()
     }
 
+    /**
+     * Android 15 avisa por aquí antes de matar un servicio dataSync que superó su límite (~6 h).
+     * Se pausan las descargas activas (se reanudan luego con Range) y el servicio se cierra solo.
+     */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        pauseActiveDownloads()
+    }
+
+    /** Variante de Android 14 (servicios cortos): mismo cierre limpio. */
+    override fun onTimeout(startId: Int) {
+        pauseActiveDownloads()
+    }
+
+    private fun pauseActiveDownloads() {
+        DownloadCenter.items
+            .filter { it.status == DlStatus.DOWNLOADING || it.status == DlStatus.QUEUED }
+            .map { it.key }
+            .forEach { DownloadCenter.pause(it) }
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
     private fun ensureChannel() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         // crearNotificationChannel es idempotente; lo llamamos una vez por arranque del servicio
