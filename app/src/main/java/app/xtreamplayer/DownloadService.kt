@@ -59,21 +59,22 @@ class DownloadService : Service() {
      * Se pausan las descargas activas (se reanudan luego con Range) y el servicio se cierra solo.
      */
     override fun onTimeout(startId: Int, fgsType: Int) {
-        pauseActiveDownloads()
+        pauseActiveDownloads(startId)
     }
 
     /** Variante de Android 14 (servicios cortos): mismo cierre limpio. */
     override fun onTimeout(startId: Int) {
-        pauseActiveDownloads()
+        pauseActiveDownloads(startId)
     }
 
-    private fun pauseActiveDownloads() {
+    private fun pauseActiveDownloads(startId: Int) {
         DownloadCenter.items
             .filter { it.status == DlStatus.DOWNLOADING || it.status == DlStatus.QUEUED }
             .map { it.key }
             .forEach { DownloadCenter.pause(it) }
         stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        // stopSelf(startId) detiene este arranque concreto, como recomienda Android para onTimeout.
+        stopSelf(startId)
     }
 
     private fun ensureChannel() {

@@ -18,6 +18,8 @@
     <string name="common_up">Subir</string>
     <string name="common_down">Bajar</string>
     <string name="common_favorite">Favorito</string>
+    <string name="common_favorite_add">Añadir a favoritos</string>
+    <string name="common_favorite_remove">Quitar de favoritos</string>
     <string name="common_view">Vista</string>
     <string name="common_no_results">Sin resultados</string>
     <string name="common_see_all">Ver todo</string>
@@ -210,7 +212,6 @@
     <!-- Errores de datos -->
     <string name="error_complete_fields">Completa servidor, usuario y contraseña</string>
     <string name="error_connect">No se pudo conectar: %1$s</string>
-    <string name="error_verify">No se pudo verificar la lista: %1$s</string>
     <string name="error_open">No se pudo abrir la lista: %1$s</string>
     <string name="error_too_large">La lista es demasiado grande para la memoria del teléfono</string>
     <string name="error_no_account">No hay una lista abierta</string>

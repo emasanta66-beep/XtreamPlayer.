@@ -280,7 +280,7 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
-                                    (if (epKey in vm.watched) "✓ " else "") +
+                                    (if (vm.isEpisodeWatched(epKey)) "✓ " else "") +
                                         stringResource(R.string.series_episode, ep.number, ep.title),
                                     style = MaterialTheme.typography.titleSmall,
                                     color = Palette.TextPrimary,

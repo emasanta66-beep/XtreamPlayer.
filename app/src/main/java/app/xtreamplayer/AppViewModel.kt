@@ -108,6 +108,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun isMovieWatched(id: Int): Boolean = currentAccount?.let { "${it.id}:movie:$id" in watchedIndex } ?: false
 
+    /** Igual que [isMovieWatched] pero con la clave ya armada (películas y episodios). */
+    fun isEpisodeWatched(key: String?): Boolean = key != null && key in watchedIndex
+
     /** Idioma de subtítulos que se activa solo al abrir un video (null = el predeterminado). */
     var subtitleLang: String?
         get() = storage.subtitleLang

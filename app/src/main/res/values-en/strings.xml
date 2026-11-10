@@ -18,6 +18,8 @@
     <string name="common_up">Move up</string>
     <string name="common_down">Move down</string>
     <string name="common_favorite">Favorite</string>
+    <string name="common_favorite_add">Add to favorites</string>
+    <string name="common_favorite_remove">Remove from favorites</string>
     <string name="common_view">View</string>
     <string name="common_no_results">No results</string>
     <string name="common_see_all">See all</string>
@@ -210,7 +212,6 @@
     <!-- Data errors -->
     <string name="error_complete_fields">Fill in server, username and password</string>
     <string name="error_connect">Could not connect: %1$s</string>
-    <string name="error_verify">Could not verify the playlist: %1$s</string>
     <string name="error_open">Could not open the playlist: %1$s</string>
     <string name="error_too_large">The playlist is too large for the phone\'s memory</string>
     <string name="error_no_account">No playlist is open</string>

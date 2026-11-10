@@ -81,6 +81,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -816,8 +817,14 @@ private fun Poster(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(13.dp)
-    val favLabel = stringResource(R.string.common_favorite)
-    Column(modifier.tvFocus(shape).clickable(onClick = onClick)) {
+    val favLabel = stringResource(if (fav) R.string.common_favorite_remove else R.string.common_favorite_add)
+    val watchedState = stringResource(R.string.common_view)
+    Column(
+        modifier = modifier
+            .tvFocus(shape)
+            .clickable(onClick = onClick)
+            .semantics { if (watched) stateDescription = watchedState },
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -838,6 +845,7 @@ private fun Poster(
                     .align(Alignment.TopEnd)
                     .padding(5.dp)
                     .size(48.dp)
+                    .clip(CircleShape)
                     .clickable(onClick = onFav)
                     .semantics { contentDescription = favLabel },
                 contentAlignment = Alignment.Center,
@@ -871,7 +879,7 @@ private fun Poster(
                 ) {
                     Icon(
                         Icons.Default.Check,
-                        contentDescription = stringResource(R.string.common_view),
+                        contentDescription = null, // el estado "visto" lo anuncia el póster
                         tint = Palette.Success,
                         modifier = Modifier.size(15.dp),
                     )
