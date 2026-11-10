@@ -796,7 +796,9 @@ private fun ListRow(
         IconButton(onClick = onFav) {
             Icon(
                 if (fav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                contentDescription = stringResource(R.string.common_favorite),
+                contentDescription = stringResource(
+                    if (fav) R.string.common_favorite_remove else R.string.common_favorite_add,
+                ),
                 tint = if (fav) Palette.Favorite else Palette.TextTertiary,
             )
         }
@@ -818,7 +820,7 @@ private fun Poster(
 ) {
     val shape = RoundedCornerShape(13.dp)
     val favLabel = stringResource(if (fav) R.string.common_favorite_remove else R.string.common_favorite_add)
-    val watchedState = stringResource(R.string.common_view)
+    val watchedState = stringResource(R.string.state_watched)
     Column(
         modifier = modifier
             .tvFocus(shape)
@@ -835,7 +837,7 @@ private fun Poster(
         ) {
             AsyncImage(
                 model = image,
-                contentDescription = title,
+                contentDescription = null, // el título lo anuncia el Text de debajo
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )

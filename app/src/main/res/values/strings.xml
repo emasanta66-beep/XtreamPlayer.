@@ -17,10 +17,9 @@
     <string name="common_first">Primero</string>
     <string name="common_up">Subir</string>
     <string name="common_down">Bajar</string>
-    <string name="common_favorite">Favorito</string>
     <string name="common_favorite_add">Añadir a favoritos</string>
     <string name="common_favorite_remove">Quitar de favoritos</string>
-    <string name="common_view">Vista</string>
+    <string name="state_watched">Visto</string>
     <string name="common_no_results">Sin resultados</string>
     <string name="common_see_all">Ver todo</string>
     <string name="common_unknown_error">Error desconocido</string>

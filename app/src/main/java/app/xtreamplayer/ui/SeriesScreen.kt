@@ -106,7 +106,9 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                     }) {
                         Icon(
                             if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = stringResource(R.string.common_favorite),
+                            contentDescription = stringResource(
+                                if (isFav) R.string.common_favorite_remove else R.string.common_favorite_add,
+                            ),
                             tint = if (isFav) Palette.Favorite else Palette.TextSecondary,
                         )
                     }

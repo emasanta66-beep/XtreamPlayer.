@@ -17,10 +17,9 @@
     <string name="common_first">First</string>
     <string name="common_up">Move up</string>
     <string name="common_down">Move down</string>
-    <string name="common_favorite">Favorite</string>
     <string name="common_favorite_add">Add to favorites</string>
     <string name="common_favorite_remove">Remove from favorites</string>
-    <string name="common_view">View</string>
+    <string name="state_watched">Watched</string>
     <string name="common_no_results">No results</string>
     <string name="common_see_all">See all</string>
     <string name="common_unknown_error">Unknown error</string>
