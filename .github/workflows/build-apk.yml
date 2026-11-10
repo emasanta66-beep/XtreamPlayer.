@@ -3,8 +3,8 @@ name: Build APK
 on:
   push:
     branches: [main, master]
+  # Cualquier PR (tambien los que se apoyan en otra rama) pasa por las pruebas.
   pull_request:
-    branches: [main, master]
   workflow_dispatch:
 
 permissions:
