@@ -29,9 +29,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import app.xtreamplayer.R
 
 /**
  * Capas que se dibujan encima del video: avisos de gesto, buffering, errores y estado de DLNA.
@@ -55,7 +57,7 @@ internal fun PlayerSeekFlash(deltaMs: Long, modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                if (deltaMs < 0) "−10 s" else "+10 s",
+                if (deltaMs < 0) stringResource(R.string.player_seek_back) else stringResource(R.string.player_seek_forward),
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
@@ -129,8 +131,8 @@ internal fun PlayerErrorCard(
         Text(message, color = Color.White, textAlign = TextAlign.Center)
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = onRetry) { Text("Reintentar") }
-            OutlinedButton(onClick = onBack) { Text("Volver") }
+            Button(onClick = onRetry) { Text(stringResource(R.string.common_retry)) }
+            OutlinedButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
         }
     }
 }
@@ -151,7 +153,7 @@ internal fun PlayerCastBusyCard(modifier: Modifier = Modifier) {
             color = Color.White,
         )
         Spacer(Modifier.height(12.dp))
-        Text("Enviando a TV…", color = Color.White)
+        Text(stringResource(R.string.player_cast_busy), color = Color.White)
     }
 }
 
@@ -174,7 +176,7 @@ internal fun PlayerCastingCard(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            "Reproduciendo en TV",
+            stringResource(R.string.player_casting_title),
             color = Color.White,
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
@@ -188,14 +190,14 @@ internal fun PlayerCastingCard(
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            "Usa el mando de la TV para pausar o cambiar el volumen. Si vuelves atrás, la TV seguirá reproduciendo.",
+            stringResource(R.string.player_casting_help),
             color = Color(0xCCFFFFFF),
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(24.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = onStop) { Text("Detener TV") }
-            OutlinedButton(onClick = onBack) { Text("Volver") }
+            Button(onClick = onStop) { Text(stringResource(R.string.player_stop_tv)) }
+            OutlinedButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
         }
     }
 }

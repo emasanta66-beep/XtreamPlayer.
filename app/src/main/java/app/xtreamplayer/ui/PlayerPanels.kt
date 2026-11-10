@@ -28,8 +28,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.xtreamplayer.R
 import app.xtreamplayer.data.Channel
 import coil.compose.AsyncImage
 
@@ -67,7 +69,11 @@ internal fun ChannelPanel(
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = stringResource(R.string.common_close),
+                    tint = Color.White,
+                )
             }
         }
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
@@ -96,7 +102,11 @@ internal fun ChannelPanel(
                         modifier = Modifier.weight(1f),
                     )
                     if (current) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Reproduciendo", tint = Palette.Accent)
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = stringResource(R.string.player_playing),
+                            tint = Palette.Accent,
+                        )
                     }
                 }
             }

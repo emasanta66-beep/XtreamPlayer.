@@ -13,8 +13,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import app.xtreamplayer.AppViewModel
+import app.xtreamplayer.R
 
 /** Aviso de "versión nueva disponible" con botón para descargar e instalar. */
 @Composable
@@ -25,13 +27,13 @@ fun UpdateDialog(vm: AppViewModel) {
 
     AlertDialog(
         onDismissRequest = { vm.dismissUpdate() },
-        title = { Text("Nueva versión disponible") },
+        title = { Text(stringResource(R.string.update_new_available)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(info.name, style = MaterialTheme.typography.titleSmall)
                 if (info.sizeBytes > 0) {
                     Text(
-                        "%.1f MB".format(info.sizeBytes / 1_048_576.0),
+                        stringResource(R.string.update_size, (info.sizeBytes / 1_048_576.0).toFloat()),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -47,12 +49,12 @@ fun UpdateDialog(vm: AppViewModel) {
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(
-                        "Descargando… ${((progress ?: 0f) * 100).toInt()}%",
+                        stringResource(R.string.update_downloading, ((progress ?: 0f) * 100).toInt()),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 } else {
                     Text(
-                        "Android te pedirá confirmar la instalación. Tus cuentas y favoritos se conservan.",
+                        stringResource(R.string.update_install_help),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -60,10 +62,10 @@ fun UpdateDialog(vm: AppViewModel) {
             }
         },
         confirmButton = {
-            TextButton(onClick = { vm.installUpdate() }, enabled = !downloading) { Text("Actualizar") }
+            TextButton(onClick = { vm.installUpdate() }, enabled = !downloading) { Text(stringResource(R.string.update_install)) }
         },
         dismissButton = {
-            TextButton(onClick = { vm.dismissUpdate() }, enabled = !downloading) { Text("Más tarde") }
+            TextButton(onClick = { vm.dismissUpdate() }, enabled = !downloading) { Text(stringResource(R.string.update_later)) }
         },
     )
 }

@@ -43,10 +43,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.xtreamplayer.AppViewModel
+import app.xtreamplayer.R
 import app.xtreamplayer.data.DlStatus
 import app.xtreamplayer.data.Fav
 import app.xtreamplayer.data.Movie
@@ -80,7 +82,11 @@ fun MovieScreen(vm: AppViewModel, movie: Movie) {
                 title = {},
                 navigationIcon = {
                     IconButton(onClick = { vm.back() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Palette.TextPrimary)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back),
+                            tint = Palette.TextPrimary,
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
@@ -122,7 +128,7 @@ fun MovieScreen(vm: AppViewModel, movie: Movie) {
                     verticalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
                     Text(
-                        "PELÍCULA",
+                        stringResource(R.string.movie_label),
                         style = MaterialTheme.typography.labelMedium,
                         color = Palette.Accent,
                         fontWeight = FontWeight.Bold,
@@ -156,7 +162,7 @@ fun MovieScreen(vm: AppViewModel, movie: Movie) {
 
             Spacer(Modifier.height(8.dp))
             Text(
-                plot ?: "Sin descripción disponible.",
+                plot ?: stringResource(R.string.movie_no_description),
                 style = MaterialTheme.typography.bodyLarge,
                 color = Palette.TextSecondary,
                 modifier = Modifier.padding(horizontal = 18.dp),
@@ -174,7 +180,7 @@ fun MovieScreen(vm: AppViewModel, movie: Movie) {
             ) {
                 Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Reproducir película", style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.movie_play), style = MaterialTheme.typography.labelLarge)
             }
 
             Spacer(Modifier.height(12.dp))
@@ -188,7 +194,9 @@ fun MovieScreen(vm: AppViewModel, movie: Movie) {
                     shape = CircleShape,
                 ) {
                     Text(
-                        if (isFav) "★ En favoritos" else "☆ Favoritos",
+                        stringResource(
+                            if (isFav) R.string.movie_in_favorites else R.string.movie_favorites,
+                        ),
                         style = MaterialTheme.typography.labelLarge,
                         maxLines = 1,
                     )
@@ -206,13 +214,14 @@ fun MovieScreen(vm: AppViewModel, movie: Movie) {
                 ) {
                     Text(
                         when (dl?.status) {
-                            null -> "⬇ Descargar"
-                            DlStatus.DONE -> "✓ Descargada"
+                            null -> stringResource(R.string.common_download)
+                            DlStatus.DONE -> stringResource(R.string.common_downloaded)
                             DlStatus.DOWNLOADING ->
-                                if (dl.total > 0) "${(dl.bytes * 100 / dl.total).coerceIn(0, 100)}%" else "Descargando…"
-                            DlStatus.QUEUED -> "En cola"
-                            DlStatus.PAUSED -> "Reanudar"
-                            DlStatus.ERROR -> "Reintentar"
+                                if (dl.total > 0) "${(dl.bytes * 100 / dl.total).coerceIn(0, 100)}%"
+                                else stringResource(R.string.common_downloading)
+                            DlStatus.QUEUED -> stringResource(R.string.common_queued)
+                            DlStatus.PAUSED -> stringResource(R.string.common_resume)
+                            DlStatus.ERROR -> stringResource(R.string.common_retry)
                         },
                         style = MaterialTheme.typography.labelLarge,
                         maxLines = 1,

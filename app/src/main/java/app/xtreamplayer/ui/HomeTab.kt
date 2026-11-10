@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -110,12 +111,12 @@ fun HomeTab(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Text(
-                    "¿Qué vemos hoy?",
+                    stringResource(R.string.home_greeting),
                     style = MaterialTheme.typography.headlineMedium,
                     color = Palette.TextPrimary,
                 )
                 Text(
-                    vm.currentAccount?.name ?: "Tu entretenimiento, en un solo lugar",
+                    vm.currentAccount?.name ?: stringResource(R.string.home_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.TextSecondary,
                     maxLines = 1,
@@ -147,7 +148,7 @@ fun HomeTab(
         if (vm.recents.isNotEmpty()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SectionHeader("Continuar viendo", onContinue)
+                    SectionHeader(stringResource(R.string.home_continue_watching), onContinue)
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 18.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -164,7 +165,7 @@ fun HomeTab(
         if (newMovies.isNotEmpty() || (!vm.movies.loaded && vm.movies.error == null)) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SectionHeader("Películas recién agregadas", onMovies)
+                    SectionHeader(stringResource(R.string.home_recent_movies), onMovies)
                     if (newMovies.isEmpty()) {
                         ShelfSkeleton()
                     } else {
@@ -190,7 +191,7 @@ fun HomeTab(
         if (newSeries.isNotEmpty() || (!vm.series.loaded && vm.series.error == null)) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SectionHeader("Series recién agregadas", onSeries)
+                    SectionHeader(stringResource(R.string.home_recent_series), onSeries)
                     if (newSeries.isEmpty()) {
                         ShelfSkeleton()
                     } else {
@@ -276,7 +277,9 @@ private fun HeroCard(
                         .padding(horizontal = 9.dp, vertical = 3.dp),
                 ) {
                     Text(
-                        if (recent == null) "DESTACADO" else "CONTINUAR VIENDO",
+                        stringResource(
+                            if (recent == null) R.string.home_featured else R.string.home_featured_continue,
+                        ),
                         style = MaterialTheme.typography.labelSmall,
                         color = Palette.OnAccent,
                         fontWeight = FontWeight.Bold,
@@ -291,7 +294,7 @@ private fun HeroCard(
                 }
             }
             Text(
-                recent?.title ?: "Encuentra algo para ver",
+                recent?.title ?: stringResource(R.string.home_empty_featured),
                 style = MaterialTheme.typography.headlineMedium,
                 color = Color.White,
                 maxLines = 2,
@@ -310,7 +313,7 @@ private fun HeroCard(
                     )
                     val remaining = ((recent.durationMs - recent.positionMs) / 60_000L).coerceAtLeast(1L)
                     Text(
-                        "Quedan $remaining min",
+                        stringResource(R.string.home_remaining_min, remaining),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xCCFFFFFF),
                     )
@@ -332,12 +335,16 @@ private fun HeroCard(
                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        if (recent == null) "Explorar catálogo" else "Continuar",
+                        stringResource(
+                            if (recent == null) R.string.home_explore else R.string.home_continue_button,
+                        ),
                         style = MaterialTheme.typography.labelLarge,
                     )
                 }
                 Text(
-                    if (recent == null) "Películas y series" else "Ver más",
+                    stringResource(
+                        if (recent == null) R.string.home_movies_and_series else R.string.common_see_all,
+                    ),
                     style = MaterialTheme.typography.labelLarge,
                     color = Color(0xE6FFFFFF),
                     modifier = Modifier
@@ -365,10 +372,10 @@ private fun QuickAccess(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        QuickCard("En vivo", R.drawable.ic_live, Palette.Live, onLive, Modifier.weight(1f))
-        QuickCard("Películas", R.drawable.ic_movies, Palette.Accent, onMovies, Modifier.weight(1f))
-        QuickCard("Series", R.drawable.ic_series, Palette.AccentSoft, onSeries, Modifier.weight(1f))
-        QuickCard("Descargas", R.drawable.ic_download, Palette.Star, onDownloads, Modifier.weight(1f))
+        QuickCard(stringResource(R.string.nav_live), R.drawable.ic_live, Palette.Live, onLive, Modifier.weight(1f))
+        QuickCard(stringResource(R.string.nav_movies), R.drawable.ic_movies, Palette.Accent, onMovies, Modifier.weight(1f))
+        QuickCard(stringResource(R.string.nav_series), R.drawable.ic_series, Palette.AccentSoft, onSeries, Modifier.weight(1f))
+        QuickCard(stringResource(R.string.nav_downloads), R.drawable.ic_download, Palette.Star, onDownloads, Modifier.weight(1f))
     }
 }
 
@@ -433,7 +440,7 @@ private fun SectionHeader(title: String, onSeeAll: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            "Ver todo",
+            stringResource(R.string.common_see_all),
             style = MaterialTheme.typography.labelLarge,
             color = Palette.Accent,
         )
@@ -497,7 +504,7 @@ private fun HomePoster(
             }
             if (isNew) {
                 Text(
-                    "NUEVO",
+                    stringResource(R.string.home_new),
                     style = MaterialTheme.typography.labelSmall,
                     color = Palette.OnAccent,
                     fontWeight = FontWeight.Bold,
@@ -565,7 +572,7 @@ private fun RecentCard(item: Recent, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            item.subtitle.ifBlank { "Continuar viendo" },
+            item.subtitle.ifBlank { stringResource(R.string.home_continue_watching) },
             style = MaterialTheme.typography.labelSmall,
             color = Palette.TextSecondary,
             maxLines = 1,

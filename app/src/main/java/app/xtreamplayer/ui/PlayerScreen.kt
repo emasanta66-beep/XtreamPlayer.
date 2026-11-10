@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
@@ -69,6 +70,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import app.xtreamplayer.AppViewModel
+import app.xtreamplayer.R
 import app.xtreamplayer.data.DlnaClient
 import app.xtreamplayer.data.DlnaDevice
 import app.xtreamplayer.data.EpgItem
@@ -121,7 +123,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             .build()
             .apply {
                 playWhenReady = true
-                // SubtÃ­tulos: se activa solo el idioma que elegiste la Ãºltima vez.
+                // Subtítulos: se activa solo el idioma que elegiste la última vez.
                 when (val pref = vm.subtitleLang) {
                     null -> {}
                     "off" -> trackSelectionParameters = trackSelectionParameters.buildUpon()
@@ -133,28 +135,28 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             }
     }
 
-    // Pistas de audio y subtÃ­tulos disponibles (se actualizan cuando el reproductor las descubre).
+    // Pistas de audio y subtítulos disponibles (se actualizan cuando el reproductor las descubre).
     var tracks by remember { mutableStateOf(exoPlayer.currentTracks) }
-    val audioOptions = remember(tracks) { tracks.options(C.TRACK_TYPE_AUDIO) }
-    val textOptions = remember(tracks) { tracks.options(C.TRACK_TYPE_TEXT) }
+    val audioOptions = remember(tracks, context) { tracks.options(C.TRACK_TYPE_AUDIO, context) }
+    val textOptions = remember(tracks, context) { tracks.options(C.TRACK_TYPE_TEXT, context) }
 
-    // CapÃ­tulo siguiente (solo en series; null si es el Ãºltimo o si no es un episodio).
+    // Capítulo siguiente (solo en series; null si es el último o si no es un episodio).
     var nextEpisode by remember { mutableStateOf<Episode?>(null) }
     LaunchedEffect(item.resumeKey) { nextEpisode = vm.nextEpisode(item) }
 
-    // En vivo: canales de la misma categorÃ­a (para â­/â® y para el panel "Canales").
+    // En vivo: canales de la misma categoría (para siguiente/anterior y para el panel "Canales").
     LaunchedEffect(item.isLive) { if (item.isLive) vm.ensureLive() }
     val channels = remember(vm.live.items, item.streamId) {
         if (item.isLive) vm.channelsInCategoryOf(item.streamId) else emptyList()
     }
     val channelIndex = channels.indexOfFirst { it.id == item.streamId }
-    // Siguiente y anterior dan la vuelta: despuÃ©s del Ãºltimo canal viene el primero.
+    // Siguiente y anterior dan la vuelta: después del último canal viene el primero.
     val nextChannel = if (channelIndex >= 0 && channels.size > 1) channels[(channelIndex + 1) % channels.size] else null
     val prevChannel =
         if (channelIndex >= 0 && channels.size > 1) channels[(channelIndex - 1 + channels.size) % channels.size] else null
     var showChannels by remember { mutableStateOf(false) }
 
-    // MenÃº â‹® (arriba a la derecha), calidad y estado de los controles propios.
+    // Menú ⋮ (arriba a la derecha), calidad y estado de los controles propios.
     var showMenu by remember { mutableStateOf(false) }
     var showQuality by remember { mutableStateOf(false) }
     var qualityAuto by remember { mutableStateOf(true) }
@@ -172,7 +174,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var durationMs by remember { mutableStateOf(0L) }
     var seeking by remember { mutableStateOf(false) }
     var seekValue by remember { mutableStateOf(0f) }
-    // Aviso de Â±10 s que aparece al hacer doble toque (0 = oculto).
+    // Aviso de ±10 s que aparece al hacer doble toque (0 = oculto).
     var seekFlash by remember { mutableStateOf(0L) }
     var pokes by remember { mutableIntStateOf(0) }
     // Gestos verticales: mitad izquierda = brillo, mitad derecha = volumen.
@@ -185,9 +187,9 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     fun poke() {
         pokes++
     }
-    val qualityOptions = remember(tracks) { tracks.qualityOptions() }
+    val qualityOptions = remember(tracks, context) { tracks.qualityOptions(context) }
 
-    // Enviar pelÃ­culas y episodios a una TV DLNA (la mayorÃ­a de LG son compatibles).
+    // Enviar películas y episodios a una TV DLNA (la mayoría de LG son compatibles).
     val castScope = rememberCoroutineScope()
     val dlna = remember(context) { DlnaClient(context.applicationContext) }
     var showCast by remember { mutableStateOf(false) }
@@ -197,15 +199,15 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var castDurationMs by remember { mutableStateOf(0L) }
 
     // Valores actuales para cuando se cierra el reproductor: el DisposableEffect no se
-    // recrea al entrar o salir de la TV, asÃ­ que no debe quedarse con el valor inicial.
+    // recrea al entrar o salir de la TV, así que no debe quedarse con el valor inicial.
     val castDeviceNow by rememberUpdatedState(castDevice)
     val castBusyNow by rememberUpdatedState(castBusy)
 
-    // TamaÃ±o de imagen y orientaciÃ³n (se conservan al cambiar de canal o capÃ­tulo).
+    // Tamaño de imagen y orientación (se conservan al cambiar de canal o capítulo).
     val videoMode = vm.videoMode.coerceIn(0, videoModes.lastIndex)
     val landscape = vm.playerLandscape
 
-    // â­ pasa al canal o capÃ­tulo siguiente; en vivo, â® al canal anterior.
+    // â­ pasa al canal o capítulo siguiente; en vivo, â® al canal anterior.
     fun seekBy(deltaMs: Long) {
         val d = exoPlayer.duration
         val t = exoPlayer.currentPosition + deltaMs
@@ -262,14 +264,14 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         }
     }
     val showOverlay = controlsVisible && !inPip && castDevice == null && !castBusy
-    // El aviso de Â±10 s desaparece solo.
+    // El aviso de ±10 s desaparece solo.
     LaunchedEffect(seekFlash) {
         if (seekFlash != 0L) {
             delay(750)
             seekFlash = 0L
         }
     }
-    // El aviso de brillo/volumen tambiÃ©n se oculta solo.
+    // El aviso de brillo/volumen también se oculta solo.
     LaunchedEffect(gestureVisible, gestureLabel) {
         if (gestureVisible) {
             delay(900)
@@ -286,9 +288,9 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         }
     }
 
-    // Velocidad de reproducciÃ³n (botÃ³n "Velocidad ...").
+    // Velocidad de reproducción (botón "Velocidad ...").
     LaunchedEffect(speedIndex) { exoPlayer.setPlaybackSpeed(speeds[speedIndex]) }
-    // Al entrar en picture-in-picture se cierra el diÃ¡logo de pistas.
+    // Al entrar en picture-in-picture se cierra el diálogo de pistas.
     LaunchedEffect(inPip) { if (inPip) showTracks = false }
 
     // Carga (o recarga) el contenido cuando cambia la URL o se pulsa "Reintentar".
@@ -301,8 +303,8 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         exoPlayer.play()
     }
 
-    // Al terminar un capÃ­tulo pasa solo al siguiente. Si todavÃ­a no se conocÃ­a cuÃ¡l es
-    // (por ejemplo, fallÃ³ la carga de la serie), lo busca en ese momento.
+    // Al terminar un capítulo pasa solo al siguiente. Si todavía no se conocía cuál es
+    // (por ejemplo, falló la carga de la serie), lo busca en ese momento.
     var advancing by remember { mutableStateOf(false) }
     fun advanceToNextEpisode() {
         if (advancing || item.isLive) return
@@ -341,8 +343,8 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                     exoPlayer.prepare()
                     return
                 }
-                // Algunos servidores cortan la conexiÃ³n justo al final del archivo: si ya casi
-                // terminaba y hay capÃ­tulo siguiente, se sigue en vez de mostrar un error.
+                // Algunos servidores cortan la conexión justo al final del archivo: si ya casi
+                // terminaba y hay capítulo siguiente, se sigue en vez de mostrar un error.
                 val total = exoPlayer.duration
                 if (!item.isLive && nextEpisode != null && total != C.TIME_UNSET && total > 0 &&
                     exoPlayer.currentPosition >= total - 15_000
@@ -353,7 +355,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 if (item.isLive && item.altUrl != null && !usingAlt) {
                     usingAlt = true
                 } else {
-                    error = "No se pudo reproducir este contenido (${e.errorCodeName})."
+                    error = context.getString(R.string.player_play_error, e.errorCodeName)
                 }
             }
         }
@@ -362,7 +364,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             exoPlayer.removeListener(listener)
             val duration = exoPlayer.duration
             val position = exoPlayer.currentPosition
-            // Si se estÃ¡ enviando a la TV, el reproductor local estÃ¡ detenido: no se pisa el avance guardado.
+            // Si se está enviando a la TV, el reproductor local está detenido: no se pisa el avance guardado.
             if (castDeviceNow == null && !castBusyNow && item.resumeKey != null &&
                 duration != C.TIME_UNSET && duration > 0 && position > 0
             ) {
@@ -423,7 +425,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         }
     }
 
-    // GuÃ­a de programaciÃ³n (solo canales en vivo), refrescada cada 2 minutos.
+    // Guía de programación (solo canales en vivo), refrescada cada 2 minutos.
     LaunchedEffect(item.streamId) {
         val id = item.streamId
         if (id != null) {
@@ -459,8 +461,8 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         castResumeAt = startAt
         castDurationMs = duration
 
-        // Se detiene el reproductor local para liberar la conexiÃ³n con el servidor
-        // (muchas listas permiten una sola conexiÃ³n) antes de que la TV abra el archivo.
+        // Se detiene el reproductor local para liberar la conexión con el servidor
+        // (muchas listas permiten una sola conexión) antes de que la TV abra el archivo.
         exoPlayer.stop()
         if (item.resumeKey != null && duration > 0) {
             vm.saveProgress(item, startAt, duration)
@@ -471,7 +473,11 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             castBusy = false
             result.onSuccess {
                 castDevice = device
-                Toast.makeText(context, "Reproduciendo en ${device.name}", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.player_playing_on, device.name),
+                    Toast.LENGTH_LONG,
+                ).show()
                 // La TV no avisa a Android del minuto que lleva: se le pregunta cada 30 s.
                 castScope.launch {
                     while (castDevice?.controlUrl == device.controlUrl) {
@@ -484,7 +490,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                     }
                 }
             }.onFailure {
-                // Si la TV falla, se vuelve a cargar en el telÃ©fono en el mismo punto.
+                // Si la TV falla, se vuelve a cargar en el teléfono en el mismo punto.
                 exoPlayer.setMediaItem(
                     MediaItem.fromUri(currentUrl),
                     if (startAt > 0) startAt else C.TIME_UNSET,
@@ -493,7 +499,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 exoPlayer.play()
                 Toast.makeText(
                     context,
-                    "No se pudo enviar a la TV. Comprueba que estÃ© encendida y en la misma Wi-Fi.",
+                    context.getString(R.string.player_cast_error),
                     Toast.LENGTH_LONG,
                 ).show()
             }
@@ -506,7 +512,11 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         castScope.launch {
             val info = dlna.position(device).getOrNull()
             dlna.stop(device).onFailure {
-                Toast.makeText(context, "No se pudo detener la TV; usa su mando.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.player_cast_stop_error),
+                    Toast.LENGTH_LONG,
+                ).show()
             }
             val start = info?.positionMs?.takeIf { it > 0 } ?: castResumeAt
             if (info != null && info.positionMs > 0) {
@@ -533,7 +543,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     player = exoPlayer
-                    useController = false // los controles son propios (mÃ¡s abajo)
+                    useController = false // los controles son propios (más abajo)
                     keepScreenOn = true
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
@@ -541,7 +551,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             },
             update = { view ->
                 view.resizeMode = videoModes[videoMode].resizeMode
-                // Mientras la TV reproduce, el telÃ©fono puede apagar la pantalla.
+                // Mientras la TV reproduce, el teléfono puede apagar la pantalla.
                 view.keepScreenOn = castDevice == null
             },
         )
@@ -569,13 +579,19 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                             when (mode) {
                                 1 -> {
                                     applyBrightness(brightness + delta)
-                                    gestureLabel = "Brillo ${(brightness * 100).roundToInt()}%"
+                                    gestureLabel = context.getString(
+                                        R.string.player_brightness,
+                                        (brightness * 100).roundToInt(),
+                                    )
                                     gestureFraction = brightness
                                 }
                                 2 -> {
                                     startVolume = (startVolume + delta).coerceIn(0f, 1f)
                                     applyVolume(startVolume)
-                                    gestureLabel = "Volumen ${(startVolume * 100).roundToInt()}%"
+                                    gestureLabel = context.getString(
+                                        R.string.player_volume,
+                                        (startVolume * 100).roundToInt(),
+                                    )
                                     gestureFraction = startVolume
                                 }
                             }
@@ -602,7 +618,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             modifier = Modifier.align(Alignment.Center),
         )
 
-        // Aviso rÃ¡pido de âˆ’10 s / +10 s al hacer doble toque.
+        // Aviso rápido de −10 s / +10 s al hacer doble toque.
         PlayerSeekFlash(
             deltaMs = seekFlash,
             modifier = Modifier.align(Alignment.Center),
@@ -616,7 +632,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             modifier = Modifier.align(Alignment.Center),
         )
 
-        // Barra superior: volver, canales (en vivo), tÃ­tulo, resoluciÃ³n, informaciÃ³n y menÃº â‹®.
+        // Barra superior: volver, canales (en vivo), título, resolución, información y menú â‹®.
         AnimatedVisibility(
             visible = showOverlay,
             enter = fadeIn(),
@@ -630,7 +646,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 epg = epg,
                 timeFormat = timeFormat,
                 videoHeight = videoH,
-                videoModeLabel = videoModes[videoMode].label,
+                videoModeLabel = stringResource(videoModes[videoMode].labelRes),
                 audioAvailable = audioOptions.size > 1 || textOptions.isNotEmpty(),
                 casting = castBusy,
                 menuOpen = showMenu,
@@ -645,7 +661,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             )
         }
 
-        // Barra inferior: pausa, Â±10 s, tiempo, volumen, subtÃ­tulos, velocidad, PiP y orientaciÃ³n.
+        // Barra inferior: pausa, ±10 s, tiempo, volumen, subtítulos, velocidad, PiP y orientación.
         AnimatedVisibility(
             visible = showOverlay,
             enter = fadeIn(),
@@ -697,13 +713,13 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         if (showQuality && !inPip) {
             val vf = exoPlayer.videoFormat
             val info = if (vf == null || vf.height <= 0) {
-                "Cargando informaciÃ³n del videoâ€¦"
+                stringResource(R.string.player_loading_info)
             } else {
                 buildString {
-                    append("${vf.width}Ã—${vf.height} (${resolutionLabel(vf.height)})")
-                    if (vf.frameRate > 0f) append(" Â· ${vf.frameRate.toInt()} fps")
-                    vf.sampleMimeType?.substringAfter('/')?.let { append(" Â· ${it.uppercase(Locale.ROOT)}") }
-                    if (vf.bitrate > 0) append(" Â· %.1f Mbps".format(vf.bitrate / 1_000_000f))
+                    append("${vf.width}×${vf.height} (${resolutionLabel(vf.height)})")
+                    if (vf.frameRate > 0f) append(" · ${vf.frameRate.toInt()} fps")
+                    vf.sampleMimeType?.substringAfter('/')?.let { append(" · ${it.uppercase(Locale.ROOT)}") }
+                    if (vf.bitrate > 0) append(" · %.1f Mbps".format(vf.bitrate / 1_000_000f))
                 }
             }
             QualityDialog(
@@ -756,7 +772,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             )
         }
 
-        // Panel lateral con los canales de la misma categorÃ­a: tocar uno lo reproduce.
+        // Panel lateral con los canales de la misma categoría: tocar uno lo reproduce.
         if (showChannels && !inPip && channels.isNotEmpty()) {
             BackHandler { showChannels = false }
             Box(
@@ -765,7 +781,8 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                     .pointerInput(Unit) { detectTapGestures { showChannels = false } }
             )
             ChannelPanel(
-                title = vm.liveCategoryName(channels.first().categoryId) ?: "Canales",
+                title = vm.liveCategoryName(channels.first().categoryId)
+                    ?: stringResource(R.string.player_channels),
                 channels = channels,
                 currentId = item.streamId,
                 onPick = { ch -> vm.switchChannel(ch) },
@@ -800,7 +817,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             PlayerCastBusyCard(modifier = Modifier.align(Alignment.Center))
         }
 
-        // Mientras la TV reproduce, el telÃ©fono queda como mando: se oculta el video local.
+        // Mientras la TV reproduce, el teléfono queda como mando: se oculta el video local.
         castDevice?.let { device ->
             if (!inPip) {
                 PlayerCastingCard(
@@ -814,15 +831,15 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     }
 }
 
-/** TamaÃ±os de imagen del reproductor; el botÃ³n "Imagen" recorre esta lista. */
-private class VideoMode(val label: String, val resizeMode: Int)
+/** Tamaños de imagen del reproductor; el botón "Imagen" recorre esta lista. */
+private class VideoMode(@androidx.annotation.StringRes val labelRes: Int, val resizeMode: Int)
 
 private val videoModes = listOf(
-    VideoMode("Original", AspectRatioFrameLayout.RESIZE_MODE_FIT), // todo el video, con barras si hace falta
-    VideoMode("Ampliar", AspectRatioFrameLayout.RESIZE_MODE_ZOOM), // llena la pantalla recortando los bordes
-    VideoMode("Estirar", AspectRatioFrameLayout.RESIZE_MODE_FILL), // llena la pantalla deformando la imagen
-    VideoMode("Al ancho", AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH),
-    VideoMode("Al alto", AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT),
+    VideoMode(R.string.player_image_original, AspectRatioFrameLayout.RESIZE_MODE_FIT), // todo el video, con barras si hace falta
+    VideoMode(R.string.player_image_zoom, AspectRatioFrameLayout.RESIZE_MODE_ZOOM), // llena la pantalla recortando los bordes
+    VideoMode(R.string.player_image_stretch, AspectRatioFrameLayout.RESIZE_MODE_FILL), // llena la pantalla deformando la imagen
+    VideoMode(R.string.player_image_width, AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH),
+    VideoMode(R.string.player_image_height, AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT),
 )
 
 /** Verdadero cuando tiene sentido mostrar buffering: ni en PiP ni enviando a la TV. */

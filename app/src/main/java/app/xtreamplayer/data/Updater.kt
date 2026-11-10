@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import app.xtreamplayer.R
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -79,7 +80,9 @@ class Updater(private val ctx: Context) {
                     if (isTrustedReleaseUrl(apkUrl) && size in 1L..MAX_APK_BYTES) {
                         return UpdateInfo(
                             version = version,
-                            name = json.optString("name").ifBlank { "Versión $version" },
+                            name = json.optString("name").ifBlank { 
+                                ctx.getString(R.string.update_version_name, version)
+                            },
                             notes = json.optString("body").trim(),
                             apkUrl = apkUrl,
                             sizeBytes = size,

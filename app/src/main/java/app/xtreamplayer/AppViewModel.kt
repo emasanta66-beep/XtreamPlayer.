@@ -172,7 +172,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (pass.isEmpty()) pass = p
         }
         if (srv.isEmpty() || user.isEmpty() || pass.isEmpty()) {
-            toast("Completa servidor, usuario y contraseña")
+            toast(str(R.string.error_complete_fields))
             return
         }
         val normalized = XtreamApi.normalize(srv)
@@ -186,7 +186,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         busy = true
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { XtreamApi(acc).authenticate() }
+                withContext(Dispatchers.IO) { XtreamApi(acc, getApplication()).authenticate() }
                 val idx = accounts.indexOfFirst { it.id == acc.id }
                 // Si cambió el servidor o el usuario, lo guardado ya no corresponde a esta lista.
                 if (idx >= 0 && (accounts[idx].server != acc.server || accounts[idx].username != acc.username)) {
@@ -196,7 +196,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 storage.saveAccounts(accounts.toList())
                 onDone()
             } catch (e: Exception) {
-                toast("No se pudo conectar: ${errorText(e)}")
+                toast(str(R.string.error_connect, errorText(e)))
             }
             busy = false
         }
@@ -224,7 +224,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         busy = true
         viewModelScope.launch {
             try {
-                val a = XtreamApi(acc)
+                val a = XtreamApi(acc, getApplication())
                 if (catalog.has(acc.id)) {
                     // Ya se abrió antes: entra al instante con lo guardado y verifica la cuenta por detrás.
                     enterAccount(acc, a, null, fromLaunch)
@@ -233,7 +233,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             val info = withContext(Dispatchers.IO) { a.authenticate() }
                             if (currentAccount?.id == acc.id) authInfo = info
                         } catch (e: Exception) {
-                            toast("No se pudo verificar la lista: ${errorText(e)}")
+                            toast(str(R.string.error_verify, errorText(e)))
                         }
                     }
                 } else {
@@ -241,7 +241,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     enterAccount(acc, a, info, fromLaunch)
                 }
             } catch (e: Exception) {
-                toast("No se pudo abrir la lista: ${errorText(e)}")
+                toast(str(R.string.error_open, errorText(e)))
             }
             busy = false
         }
@@ -358,7 +358,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 applySection(section, cats, items, accountId, orderKey)
                 withContext(Dispatchers.IO) { catalog.save(accountId, kind, cats, items, toFields) }
             } catch (e: OutOfMemoryError) {
-                if (!shown) section.error = "La lista es demasiado grande para la memoria del teléfono"
+                if (!shown) section.error = str(R.string.error_too_large)
             } catch (e: Exception) {
                 // Si ya se está mostrando la copia guardada, un fallo de red al actualizar no se muestra.
                 if (!shown) section.error = errorText(e)
@@ -378,7 +378,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     suspend fun loadSeriesInfo(id: Int): Result<SeriesDetail> {
-        val a = api ?: return Result.failure(IOException("No hay una lista abierta"))
+        val a = api ?: return Result.failure(IOException(str(R.string.error_no_account)))
         val result = withContext(Dispatchers.IO) { runCatching { a.seriesInfo(id) } }
         result.onSuccess { seriesCache[id] = it }
         return result
@@ -555,13 +555,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (list.isEmpty()) return
         requestNotifPermissionOnce()
         list.forEach { DownloadCenter.enqueue(it) }
-        toast(if (list.size == 1) "Descargando…" else "Descargando ${list.size} capítulos")
+        toast(
+            if (list.size == 1) str(R.string.common_downloading)
+            else str(R.string.error_download_episodes, list.size),
+        )
     }
 
     private fun enqueueDownload(item: DownloadItem) {
         requestNotifPermissionOnce()
         DownloadCenter.enqueue(item)
-        toast("Descargando…")
+        toast(str(R.string.common_downloading))
     }
 
     /** Toca el botón de descarga de algo que ya está en la cola: pausa o reanuda. */
@@ -596,7 +599,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     suspend fun loadMovieInfo(id: Int): Result<MovieInfo> {
-        val a = api ?: return Result.failure(IOException("No hay una lista abierta"))
+        val a = api ?: return Result.failure(IOException(str(R.string.error_no_account)))
         return withContext(Dispatchers.IO) { runCatching { a.vodInfo(id) } }
     }
 
@@ -745,10 +748,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         server.removePrefix("http://").removePrefix("https://").substringBefore("/")
 
     private fun errorText(e: Exception): String = when (e) {
-        is UnknownHostException -> "servidor no encontrado (revisa la dirección)"
-        is SocketTimeoutException -> "tiempo de espera agotado"
+        is UnknownHostException -> str(R.string.error_host_not_found)
+        is SocketTimeoutException -> str(R.string.error_timeout)
         else -> e.message ?: e.javaClass.simpleName
     }
+
+    /** Texto de recursos con el idioma actual de la app. */
+    private fun str(id: Int, vararg args: Any): String =
+        getApplication<Application>().getString(id, *args)
 
     // ---------------------------------------------------------------- Actualizaciones
 
@@ -772,10 +779,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (info != null) {
                     update = info
                 } else if (manual) {
-                    toast("Ya tienes la última versión (${updater.currentName()})")
+                    toast(str(R.string.update_up_to_date, updater.currentName()))
                 }
             } catch (e: Exception) {
-                if (manual) toast("No se pudo buscar actualizaciones. Revisa tu conexión.")
+                if (manual) toast(str(R.string.update_check_failed))
             }
         }
     }
@@ -785,7 +792,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (updateProgress != null) return
         // Android exige que el usuario active "Instalar apps desconocidas" para esta app (una sola vez).
         if (!updater.canInstall()) {
-            toast("Activa el permiso para instalar y vuelve a tocar Actualizar")
+            toast(str(R.string.update_permission))
             updater.openInstallPermissionSettings()
             return
         }
@@ -798,7 +805,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 updater.install(file)
                 update = null
             } catch (e: Exception) {
-                toast("No se pudo descargar la actualización. Inténtalo de nuevo.")
+                toast(str(R.string.update_download_failed))
             } finally {
                 updateProgress = null
             }

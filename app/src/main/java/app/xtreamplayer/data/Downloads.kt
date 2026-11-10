@@ -7,6 +7,7 @@ import android.os.Looper
 import androidx.compose.runtime.mutableStateListOf
 import androidx.core.content.ContextCompat
 import app.xtreamplayer.DownloadService
+import app.xtreamplayer.R
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -192,7 +193,7 @@ object DownloadCenter {
         currentCall = null
         val now = find(item.key) ?: return // se borró mientras bajaba
         if (now.status != DlStatus.DOWNLOADING) return // se pausó
-        val error = outcome.getOrElse { "Descarga interrumpida" }
+        val error = outcome.getOrElse { s(R.string.downloads_error_interrupted) }
         if (error == null) {
             update(item.key) { it.copy(status = DlStatus.DONE, bytes = file.length(), total = file.length(), error = null) }
         } else {
@@ -228,25 +229,25 @@ object DownloadCenter {
                         ?.groupValues?.get(1)?.toLongOrNull()
                     if (total == have) return null
                     file.delete()
-                    return "El servidor rechazó la reanudación; se descartó el fragmento. Reanuda la descarga."
+                    return s(R.string.error_resume_rejected)
                 }
-                if (!resp.isSuccessful) return "El servidor respondió ${resp.code}"
+                if (!resp.isSuccessful) return s(R.string.error_server_response, resp.code)
 
                 val range = if (resp.code == 206) {
                     val match = Regex("^bytes (\\d+)-(\\d+)/(\\d+|\\*)$")
                         .matchEntire(resp.header("Content-Range").orEmpty())
                     if (match == null) {
                         if (have > 0) file.delete()
-                        return "Rango inválido; se descartó el fragmento. Reanuda la descarga."
+                        return s(R.string.error_range_invalid)
                     }
                     val start = match.groupValues[1].toLongOrNull()
-                        ?: return "El servidor envió un rango inválido"
+                        ?: return s(R.string.error_range_bad)
                     val end = match.groupValues[2].toLongOrNull()
-                        ?: return "El servidor envió un rango inválido"
+                        ?: return s(R.string.error_range_bad)
                     val total = match.groupValues[3].toLongOrNull()
                     if (start != have || end < start || (total != null && end >= total)) {
                         if (have > 0) file.delete()
-                        return "Rango incompatible; se descartó el fragmento. Reanuda la descarga."
+                        return s(R.string.error_range_mismatch)
                     }
                     Triple(start, end, total)
                 } else {
@@ -255,21 +256,21 @@ object DownloadCenter {
 
                 val type = resp.header("Content-Type") ?: ""
                 if (type.startsWith("text/") || type.contains("json")) {
-                    return "El servidor no entregó el video (¿límite de conexiones de tu lista?)"
+                    return s(R.string.error_not_video)
                 }
-                val body = resp.body ?: return "Respuesta vacía del servidor"
+                val body = resp.body ?: return s(R.string.error_empty_response)
                 val append = resp.code == 206 && have > 0
                 if (!append) have = 0L
                 val len = body.contentLength()
                 if (range != null && len > 0 && len != range.second - range.first + 1) {
                     if (have > 0) file.delete()
-                    return "Respuesta de rango incompleta; se descartó el fragmento."
+                    return s(R.string.error_range_incomplete)
                 }
                 val total = range?.third ?: if (len > 0) have + len else 0L
                 val requiredBytes = if (total > have) total - have else len
                 val usableSpace = file.parentFile?.usableSpace ?: Long.MAX_VALUE
                 if (requiredBytes > 0 && usableSpace < requiredBytes + MIN_FREE_SPACE_BYTES) {
-                    return "No hay espacio suficiente. Libera espacio y reanuda."
+                    return s(R.string.error_no_space)
                 }
 
                 var written = have
@@ -282,7 +283,7 @@ object DownloadCenter {
                             if (n < 0) break
                             val available = file.parentFile?.usableSpace ?: Long.MAX_VALUE
                             if (available < n.toLong() + MIN_FREE_SPACE_BYTES) {
-                                throw IOException("No hay espacio suficiente. Libera espacio y reanuda.")
+                                throw NoSpaceException()
                             }
                             out.write(buf, 0, n)
                             written += n
@@ -294,18 +295,19 @@ object DownloadCenter {
                         }
                     }
                 }
-                if (total > 0 && written != total) return "La descarga se cortó. Reanúdala."
-                if (written == 0L) return "El archivo llegó vacío"
+                if (total > 0 && written != total) return s(R.string.error_truncated)
+                if (written == 0L) return s(R.string.error_empty_file)
             }
             null
         } catch (e: IOException) {
-            if (e.message?.contains("No hay espacio suficiente") == true) {
-                "No hay espacio suficiente. Libera espacio y reanuda."
-            } else {
-                "Se cortó la conexión. Comprueba la red y reanuda la descarga."
-            }
+            if (e is NoSpaceException) s(R.string.error_no_space) else s(R.string.error_connection_lost)
         }
     }
+
+    /** Error interno para distinguir "sin espacio" del resto de fallos de red. */
+    private class NoSpaceException : IOException()
+
+    private fun s(id: Int, vararg args: Any): String = appCtx?.getString(id, *args) ?: ""
 
     private const val MIN_FREE_SPACE_BYTES = 10L * 1024 * 1024
 

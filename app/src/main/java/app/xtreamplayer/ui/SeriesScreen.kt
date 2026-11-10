@@ -54,11 +54,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.xtreamplayer.AppViewModel
+import app.xtreamplayer.R
 import app.xtreamplayer.data.Fav
 import app.xtreamplayer.data.Series
 import app.xtreamplayer.data.SeriesDetail
@@ -71,6 +73,7 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
     var season by remember { mutableStateOf<Int?>(null) }
     var reload by remember { mutableIntStateOf(0) }
 
+    val unknownError = stringResource(R.string.common_unknown_error)
     LaunchedEffect(series.id, reload) {
         error = null
         vm.loadSeriesInfo(series.id)
@@ -78,7 +81,7 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                 detail = it
                 if (season == null) season = it.seasons.keys.firstOrNull()
             }
-            .onFailure { error = it.message ?: "Error desconocido" }
+            .onFailure { error = it.message ?: unknownError }
     }
 
     val isFav = vm.isFav("series", series.id)
@@ -90,7 +93,11 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                 title = { Text(series.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = { vm.back() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Palette.TextPrimary)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.common_back),
+                            tint = Palette.TextPrimary,
+                        )
                     }
                 },
                 actions = {
@@ -99,7 +106,7 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                     }) {
                         Icon(
                             if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = "Favorito",
+                            contentDescription = stringResource(R.string.common_favorite),
                             tint = if (isFav) Palette.Favorite else Palette.TextSecondary,
                         )
                     }
@@ -151,7 +158,7 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                                 verticalArrangement = Arrangement.spacedBy(7.dp),
                             ) {
                                 Text(
-                                    "SERIE",
+                                    stringResource(R.string.series_label),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = Palette.Accent,
                                     fontWeight = FontWeight.Bold,
@@ -168,7 +175,8 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                                     }
                                 }
                                 Text(
-                                    plot?.replace(Regex("\\s+"), " ")?.trim() ?: "Sin descripción disponible.",
+                                    plot?.replace(Regex("\\s+"), " ")?.trim()
+                                        ?: stringResource(R.string.series_no_description),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Palette.TextSecondary,
                                     maxLines = 5,
@@ -195,7 +203,10 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                             ) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Continuar ${resume.subtitle}", style = MaterialTheme.typography.labelLarge)
+                                Text(
+                                    stringResource(R.string.series_continue_from, resume.subtitle),
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
                             }
                         }
                     }
@@ -210,7 +221,7 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                                 FilterChip(
                                     selected = n == selected,
                                     onClick = { season = n },
-                                    label = { Text("Temporada $n", maxLines = 1) },
+                                    label = { Text(stringResource(R.string.series_season, n), maxLines = 1) },
                                     shape = CircleShape,
                                     colors = FilterChipDefaults.filterChipColors(
                                         containerColor = Palette.SurfaceHigh,
@@ -238,7 +249,12 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                                     .padding(horizontal = 18.dp, vertical = 4.dp)
                                     .height(46.dp),
                                 shape = CircleShape,
-                            ) { Text("⬇  Descargar temporada $selected", style = MaterialTheme.typography.labelLarge) }
+                            ) {
+                                Text(
+                                    stringResource(R.string.series_download_season, selected ?: 0),
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
                         }
                     }
 
@@ -262,7 +278,8 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
-                                    (if (epKey in vm.watched) "✓ " else "") + "E${ep.number} · ${ep.title}",
+                                    (if (epKey in vm.watched) "✓ " else "") +
+                                        stringResource(R.string.series_episode, ep.number, ep.title),
                                     style = MaterialTheme.typography.titleSmall,
                                     color = Palette.TextPrimary,
                                     maxLines = 2,
@@ -297,7 +314,7 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                     if (d.seasons.isEmpty()) {
                         item {
                             Text(
-                                "Esta serie no tiene episodios disponibles.",
+                                stringResource(R.string.series_no_episodes),
                                 modifier = Modifier.padding(24.dp),
                                 color = Palette.TextSecondary,
                             )
@@ -312,14 +329,14 @@ fun SeriesScreen(vm: AppViewModel, series: Series) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    "No se pudo cargar la serie",
+                    stringResource(R.string.series_load_error),
                     style = MaterialTheme.typography.titleMedium,
                     color = Palette.TextPrimary,
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(error ?: "", textAlign = TextAlign.Center, color = Palette.TextSecondary)
                 Spacer(Modifier.height(14.dp))
-                Button(onClick = { reload++ }) { Text("Reintentar") }
+                Button(onClick = { reload++ }) { Text(stringResource(R.string.common_retry)) }
             }
 
             else -> Box(modifier, contentAlignment = Alignment.Center) {

@@ -56,7 +56,7 @@ class DownloadService : Service() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26) {
             nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, "Descargas", NotificationManager.IMPORTANCE_LOW)
+                NotificationChannel(CHANNEL, getString(R.string.downloads_channel), NotificationManager.IMPORTANCE_LOW)
             )
         }
         val items = DownloadCenter.items
@@ -64,11 +64,14 @@ class DownloadService : Service() {
         val pending = items.count { it.status == DlStatus.QUEUED || it.status == DlStatus.DOWNLOADING }
         val title = active?.let {
             if (it.subtitle.isEmpty()) it.title else "${it.title} · ${it.subtitle}"
-        } ?: "Descargas"
+        } ?: getString(R.string.downloads_channel)
         val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else Notification.Builder(this)
         b.setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(title)
-            .setContentText(if (pending > 1) "$pending descargas en cola" else "Descargando…")
+            .setContentText(
+                if (pending > 1) getString(R.string.downloads_notification_queued, pending)
+                else getString(R.string.downloads_notification_downloading)
+            )
             .setOngoing(true)
             .setOnlyAlertOnce(true)
         if (active != null && active.total > 0) {

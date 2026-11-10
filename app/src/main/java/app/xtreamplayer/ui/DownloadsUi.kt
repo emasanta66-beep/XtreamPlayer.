@@ -31,11 +31,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.xtreamplayer.AppViewModel
+import app.xtreamplayer.R
 import app.xtreamplayer.data.DlStatus
 import app.xtreamplayer.data.DownloadItem
 
@@ -68,7 +70,7 @@ fun DownloadBadge(
             null -> Text("⬇", color = Color.White, fontSize = 16.sp)
             DlStatus.DONE -> Icon(
                 Icons.Default.Check,
-                contentDescription = "Descargado",
+                contentDescription = stringResource(R.string.downloads_downloaded),
                 tint = Palette.Success,
                 modifier = Modifier.size(20.dp),
             )
@@ -95,7 +97,7 @@ fun DownloadBadge(
             )
             DlStatus.PAUSED, DlStatus.ERROR -> Icon(
                 Icons.Default.PlayArrow,
-                contentDescription = "Reanudar descarga",
+                contentDescription = stringResource(R.string.downloads_resume),
                 tint = if (d.status == DlStatus.ERROR) Palette.Error else Color.White,
                 modifier = Modifier.size(22.dp),
             )
@@ -103,14 +105,26 @@ fun DownloadBadge(
     }
 }
 
+@Composable
 private fun statusText(d: DownloadItem): String = when (d.status) {
-    DlStatus.QUEUED -> "En cola"
+    DlStatus.QUEUED -> stringResource(R.string.downloads_queued)
     DlStatus.DOWNLOADING ->
-        if (d.total > 0) "Descargando ${(d.bytes * 100 / d.total).coerceIn(0, 100)}% · ${formatMb(d.bytes)} de ${formatMb(d.total)}"
-        else "Descargando… ${formatMb(d.bytes)}"
-    DlStatus.PAUSED -> "En pausa · toca para reanudar (${formatMb(d.bytes)})"
-    DlStatus.DONE -> "Listo para ver sin conexión · ${formatMb(d.bytes)}"
-    DlStatus.ERROR -> "Error: ${d.error ?: "no se pudo descargar"} · toca para reintentar"
+        if (d.total > 0) {
+            stringResource(
+                R.string.downloads_progress,
+                (d.bytes * 100 / d.total).coerceIn(0, 100),
+                formatMb(d.bytes),
+                formatMb(d.total),
+            )
+        } else {
+            stringResource(R.string.downloads_progress_simple, formatMb(d.bytes))
+        }
+    DlStatus.PAUSED -> stringResource(R.string.downloads_paused, formatMb(d.bytes))
+    DlStatus.DONE -> stringResource(R.string.downloads_ready, formatMb(d.bytes))
+    DlStatus.ERROR -> stringResource(
+        R.string.downloads_error,
+        d.error ?: stringResource(R.string.common_unknown_error),
+    )
 }
 
 @Composable
@@ -125,9 +139,9 @@ fun DownloadsTab(vm: AppViewModel, query: String, modifier: Modifier) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
                 if (all.isEmpty()) {
-                    "Aquí verás lo que descargues. Toca la flecha ⬇ en una película o en un capítulo para verlo sin internet."
+                    stringResource(R.string.downloads_empty)
                 } else {
-                    "Sin resultados"
+                    stringResource(R.string.common_no_results)
                 },
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -176,7 +190,7 @@ fun DownloadsTab(vm: AppViewModel, query: String, modifier: Modifier) {
                 IconButton(onClick = { vm.deleteDownload(d.key) }) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Borrar descarga",
+                        contentDescription = stringResource(R.string.downloads_delete),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

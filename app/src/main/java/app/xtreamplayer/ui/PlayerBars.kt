@@ -37,10 +37,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.xtreamplayer.R
 import app.xtreamplayer.data.EpgItem
 import java.text.SimpleDateFormat
 
@@ -79,7 +81,11 @@ internal fun PlayerTopBar(
         verticalAlignment = Alignment.Top,
     ) {
         IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Color.White)
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.common_back),
+                tint = Color.White,
+            )
         }
         if (isLive && hasChannels) {
             Row(
@@ -101,7 +107,7 @@ internal fun PlayerTopBar(
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(6.dp))
-                Text("Canales", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.player_channels), color = Color.White, style = MaterialTheme.typography.labelLarge)
             }
         }
         Column(Modifier.weight(1f).padding(top = 6.dp)) {
@@ -117,7 +123,12 @@ internal fun PlayerTopBar(
             val next = current?.let { c -> epg.firstOrNull { it.start >= c.end } }
             if (current != null) {
                 Text(
-                    "Ahora: ${current.title} (${timeFormat.format(current.start)}–${timeFormat.format(current.end)})",
+                    stringResource(
+                        R.string.player_epg_now,
+                        current.title,
+                        timeFormat.format(current.start),
+                        timeFormat.format(current.end),
+                    ),
                     color = Color(0xCCFFFFFF),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
@@ -126,7 +137,7 @@ internal fun PlayerTopBar(
             }
             if (next != null) {
                 Text(
-                    "Después: ${next.title} (${timeFormat.format(next.start)})",
+                    stringResource(R.string.player_epg_next, next.title, timeFormat.format(next.start)),
                     color = Color(0x99FFFFFF),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
@@ -155,19 +166,19 @@ internal fun PlayerTopBar(
             onPoke()
             onQuality()
         }) {
-            Icon(Icons.Default.Info, contentDescription = "Calidad y resolución", tint = Color.White)
+            Icon(Icons.Default.Info, contentDescription = stringResource(R.string.player_quality), tint = Color.White)
         }
         Box {
             IconButton(onClick = {
                 onPoke()
                 onMenuOpenChange(true)
             }) {
-                Icon(Icons.Default.MoreVert, contentDescription = "Más opciones", tint = Color.White)
+                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.common_more), tint = Color.White)
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { onMenuOpenChange(false) }) {
                 if (audioAvailable) {
                     DropdownMenuItem(
-                        text = { Text("Audio y subtítulos") },
+                        text = { Text(stringResource(R.string.player_audio_subs)) },
                         onClick = {
                             onMenuOpenChange(false)
                             onTracks()
@@ -175,14 +186,14 @@ internal fun PlayerTopBar(
                     )
                 }
                 DropdownMenuItem(
-                    text = { Text("Calidad y resolución") },
+                    text = { Text(stringResource(R.string.player_quality)) },
                     onClick = {
                         onMenuOpenChange(false)
                         onQuality()
                     },
                 )
                 DropdownMenuItem(
-                    text = { Text("Imagen: $videoModeLabel") },
+                    text = { Text(stringResource(R.string.player_image, videoModeLabel)) },
                     onClick = {
                         onMenuOpenChange(false)
                         onCycleVideoMode()
@@ -190,7 +201,13 @@ internal fun PlayerTopBar(
                 )
                 if (!isLive) {
                     DropdownMenuItem(
-                        text = { Text(if (casting) "Enviando…" else "Enviar a TV") },
+                        text = {
+                            Text(
+                                stringResource(
+                                    if (casting) R.string.player_cast_short else R.string.player_cast,
+                                ),
+                            )
+                        },
                         enabled = !casting,
                         onClick = {
                             onMenuOpenChange(false)
@@ -267,7 +284,7 @@ internal fun PlayerBottomBar(
             Row(m.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(9.dp).clip(CircleShape).background(Color(0xFFFF3B30)))
                 Spacer(Modifier.width(6.dp))
-                Text("EN VIVO", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.player_live), color = Color.White, fontWeight = FontWeight.Bold)
             }
         } else {
             Column(m) {

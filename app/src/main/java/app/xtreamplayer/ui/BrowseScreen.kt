@@ -78,11 +78,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.xtreamplayer.AppViewModel
+import app.xtreamplayer.R
 import app.xtreamplayer.Section
 import app.xtreamplayer.data.Category
 import app.xtreamplayer.data.Channel
@@ -103,7 +105,15 @@ fun BrowseScreen(vm: AppViewModel) {
     var query by rememberSaveable { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    val titles = listOf("Inicio", "En vivo", "Películas", "Series", "Favoritos", "Continuar", "Descargas")
+    val titles = listOf(
+        R.string.nav_home,
+        R.string.nav_live,
+        R.string.nav_movies,
+        R.string.nav_series,
+        R.string.nav_favorites,
+        R.string.nav_continue,
+        R.string.nav_downloads,
+    )
 
     // La búsqueda espera a que el usuario deje de escribir: con catálogos de decenas de miles
     // de elementos, filtrar en cada tecla se nota.
@@ -137,7 +147,12 @@ fun BrowseScreen(vm: AppViewModel) {
                             TextField(
                                 value = query,
                                 onValueChange = { query = it },
-                                placeholder = { Text("Buscar en tu lista…", color = Palette.TextTertiary) },
+                                placeholder = {
+                                    Text(
+                                        stringResource(R.string.browse_search_hint),
+                                        color = Palette.TextTertiary,
+                                    )
+                                },
                                 singleLine = true,
                                 shape = CircleShape,
                                 colors = TextFieldDefaults.colors(
@@ -157,7 +172,7 @@ fun BrowseScreen(vm: AppViewModel) {
                                 Spacer(Modifier.width(10.dp))
                                 Column {
                                     Text(
-                                        vm.currentAccount?.name ?: "Xtream Player",
+                                        vm.currentAccount?.name ?: stringResource(R.string.app_name),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                         style = MaterialTheme.typography.titleMedium,
@@ -165,7 +180,7 @@ fun BrowseScreen(vm: AppViewModel) {
                                     val info = vm.authInfo
                                     val sub = listOfNotNull(
                                         info?.status?.takeIf { it.isNotBlank() },
-                                        info?.expires?.let { "vence $it" },
+                                        info?.expires?.let { stringResource(R.string.accounts_expires, it) },
                                     ).joinToString(" · ")
                                     if (sub.isNotBlank()) {
                                         Text(
@@ -185,7 +200,9 @@ fun BrowseScreen(vm: AppViewModel) {
                         }) {
                             Icon(
                                 if (searching) Icons.Default.Close else Icons.Default.Search,
-                                contentDescription = if (searching) "Cerrar búsqueda" else "Buscar",
+                                contentDescription = stringResource(
+                                    if (searching) R.string.browse_close_search else R.string.common_search,
+                                ),
                                 tint = Palette.TextPrimary,
                             )
                         }
@@ -195,42 +212,62 @@ fun BrowseScreen(vm: AppViewModel) {
                                 TAB_MOVIES -> vm.ensureMovies(true)
                                 TAB_SERIES -> vm.ensureSeries(true)
                             }
-                        }) { Icon(Icons.Default.Refresh, contentDescription = "Actualizar", tint = Palette.TextPrimary) }
+                        }) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = stringResource(R.string.common_refresh),
+                                tint = Palette.TextPrimary,
+                            )
+                        }
                         Box {
                             IconButton(onClick = { menuOpen = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "Más opciones", tint = Palette.TextPrimary)
+                                Icon(
+                                    Icons.Default.MoreVert,
+                                    contentDescription = stringResource(R.string.common_more),
+                                    tint = Palette.TextPrimary,
+                                )
                             }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                 DropdownMenuItem(
-                                    text = { Text("Cambiar de lista") },
+                                    text = { Text(stringResource(R.string.browse_change_list)) },
                                     onClick = {
                                         vm.manageAccounts()
                                         menuOpen = false
                                     },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Añadir lista") },
+                                    text = { Text(stringResource(R.string.accounts_add)) },
                                     onClick = {
                                         vm.manageAccounts(add = true)
                                         menuOpen = false
                                     },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("En vivo: HLS (.m3u8)" + if (vm.liveFormat == "m3u8") "  ✓" else "") },
+                                    text = {
+                                        Text(
+                                            stringResource(R.string.browse_live_hls) +
+                                                if (vm.liveFormat == "m3u8") "  ✓" else "",
+                                        )
+                                    },
                                     onClick = {
                                         vm.setLiveFormat("m3u8")
                                         menuOpen = false
                                     },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("En vivo: MPEG-TS (.ts)" + if (vm.liveFormat == "ts") "  ✓" else "") },
+                                    text = {
+                                        Text(
+                                            stringResource(R.string.browse_live_ts) +
+                                                if (vm.liveFormat == "ts") "  ✓" else "",
+                                        )
+                                    },
                                     onClick = {
                                         vm.setLiveFormat("ts")
                                         menuOpen = false
                                     },
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Buscar actualización") },
+                                    text = { Text(stringResource(R.string.browse_check_update)) },
                                     onClick = {
                                         vm.checkUpdate(manual = true)
                                         menuOpen = false
@@ -253,7 +290,7 @@ fun BrowseScreen(vm: AppViewModel) {
                             onClick = { tab = i },
                             text = {
                                 Text(
-                                    t,
+                                    stringResource(t),
                                     maxLines = 1,
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = if (tab == i) FontWeight.SemiBold else FontWeight.Medium,
@@ -326,8 +363,8 @@ private fun ContinueTab(vm: AppViewModel, query: String, modifier: Modifier) {
     if (list.isEmpty()) {
         Box(modifier) {
             EmptyHint(
-                if (vm.recents.isEmpty()) "Lo que empieces a ver aparecerá aquí para que lo continúes donde lo dejaste."
-                else "Sin resultados",
+                if (vm.recents.isEmpty()) stringResource(R.string.browse_empty_continue)
+                else stringResource(R.string.common_no_results),
             )
         }
     } else {
@@ -362,8 +399,8 @@ private fun ContinueRow(r: Recent, onClick: () -> Unit, onRemove: () -> Unit) {
             )
             Text(
                 listOf(
-                    r.subtitle.ifEmpty { "Película" },
-                    "quedan $remainingMin min",
+                    r.subtitle.ifEmpty { stringResource(R.string.browse_movie) },
+                    stringResource(R.string.browse_remaining_min, remainingMin),
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.labelSmall,
                 color = Palette.TextSecondary,
@@ -372,7 +409,7 @@ private fun ContinueRow(r: Recent, onClick: () -> Unit, onRemove: () -> Unit) {
         IconButton(onClick = onRemove) {
             Icon(
                 Icons.Default.Close,
-                contentDescription = "Quitar de Continuar viendo",
+                contentDescription = stringResource(R.string.browse_remove_continue),
                 tint = Palette.TextTertiary,
             )
         }
@@ -397,7 +434,7 @@ private fun LiveTab(vm: AppViewModel, query: String, modifier: Modifier) {
         }
         val list = filteredItems(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
         if (list.isEmpty()) {
-            EmptyHint("Sin resultados")
+            EmptyHint(stringResource(R.string.common_no_results))
         } else {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
                 items(list, key = { it.id }) { ch ->
@@ -424,7 +461,7 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
         }
         val list = filteredItems(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
         if (list.isEmpty()) {
-            EmptyHint("Sin resultados")
+            EmptyHint(stringResource(R.string.common_no_results))
         } else {
             val ctx = LocalContext.current
             LaunchedEffect(list) { prefetchImages(ctx, list.take(24).map { it.icon }) }
@@ -471,7 +508,7 @@ private fun SeriesTab(vm: AppViewModel, query: String, modifier: Modifier) {
         }
         val list = filteredItems(s.items, s.selectedCat, query, { it.categoryId }, { it.name })
         if (list.isEmpty()) {
-            EmptyHint("Sin resultados")
+            EmptyHint(stringResource(R.string.common_no_results))
         } else {
             val ctx = LocalContext.current
             LaunchedEffect(list) { prefetchImages(ctx, list.take(24).map { it.cover }) }
@@ -505,8 +542,8 @@ private fun FavTab(vm: AppViewModel, query: String, modifier: Modifier) {
     if (list.isEmpty()) {
         Box(modifier) {
             EmptyHint(
-                if (vm.favs.isEmpty()) "Toca el corazón en canales, películas o series para verlos aquí."
-                else "Sin resultados",
+                if (vm.favs.isEmpty()) stringResource(R.string.browse_empty_favorites)
+                else stringResource(R.string.common_no_results),
             )
         }
     } else {
@@ -515,9 +552,9 @@ private fun FavTab(vm: AppViewModel, query: String, modifier: Modifier) {
                 ListRow(
                     title = f.name,
                     subtitle = when (f.type) {
-                        "live" -> "En vivo"
-                        "movie" -> "Película"
-                        else -> "Serie"
+                        "live" -> stringResource(R.string.nav_live)
+                        "movie" -> stringResource(R.string.browse_movie)
+                        else -> stringResource(R.string.browse_series)
                     },
                     image = f.icon,
                     fav = true,
@@ -556,7 +593,7 @@ private fun <T> SectionHost(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    "No se pudo cargar",
+                    stringResource(R.string.browse_load_error),
                     style = MaterialTheme.typography.titleMedium,
                     color = Palette.TextPrimary,
                 )
@@ -568,7 +605,7 @@ private fun <T> SectionHost(
                     color = Palette.TextSecondary,
                 )
                 Spacer(Modifier.height(14.dp))
-                Button(onClick = onRetry) { Text("Reintentar") }
+                Button(onClick = onRetry) { Text(stringResource(R.string.common_retry)) }
             }
 
             else -> {
@@ -604,14 +641,14 @@ private fun CategoryRow(
                 IconButton(onClick = onReorder, modifier = Modifier.size(36.dp)) {
                     Icon(
                         Icons.AutoMirrored.Filled.List,
-                        contentDescription = "Ordenar categorías",
+                        contentDescription = stringResource(R.string.browse_sort_categories),
                         tint = Palette.TextSecondary,
                     )
                 }
             }
         }
         item {
-            CategoryChip("Todos", selected == null) { onSelect(null) }
+            CategoryChip(stringResource(R.string.common_all), selected == null) { onSelect(null) }
         }
         items(cats, key = { it.id }) { c ->
             CategoryChip(c.name, selected == c.id) { onSelect(c.id) }
@@ -650,11 +687,11 @@ private fun CategoryOrderDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Ordenar categorías") },
+        title = { Text(stringResource(R.string.browse_sort_categories)) },
         text = {
             Column {
                 Text(
-                    "Pon tus categorías favoritas primero. El orden se guarda para esta lista.",
+                    stringResource(R.string.browse_sort_help),
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.TextSecondary,
                 )
@@ -668,19 +705,27 @@ private fun CategoryOrderDialog(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f),
                             )
-                            TextButton(onClick = { onMove(i, 0) }, enabled = i > 0) { Text("Primero") }
+                            TextButton(onClick = { onMove(i, 0) }, enabled = i > 0) {
+                                Text(stringResource(R.string.common_first))
+                            }
                             IconButton(onClick = { onMove(i, i - 1) }, enabled = i > 0) {
-                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Subir")
+                                Icon(
+                                    Icons.Default.KeyboardArrowUp,
+                                    contentDescription = stringResource(R.string.common_up),
+                                )
                             }
                             IconButton(onClick = { onMove(i, i + 1) }, enabled = i < cats.lastIndex) {
-                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Bajar")
+                                Icon(
+                                    Icons.Default.KeyboardArrowDown,
+                                    contentDescription = stringResource(R.string.common_down),
+                                )
                             }
                         }
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Listo") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_ready)) } },
     )
 }
 
@@ -735,7 +780,7 @@ private fun ListRow(
         IconButton(onClick = onFav) {
             Icon(
                 if (fav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                contentDescription = "Favorito",
+                contentDescription = stringResource(R.string.common_favorite),
                 tint = if (fav) Palette.Favorite else Palette.TextTertiary,
             )
         }
@@ -780,7 +825,7 @@ private fun Poster(
             ) {
                 Icon(
                     if (fav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                    contentDescription = "Favorito",
+                    contentDescription = stringResource(R.string.common_favorite),
                     tint = if (fav) Palette.Favorite else Color.White,
                     modifier = Modifier.clickable(onClick = onFav).padding(5.dp).size(18.dp),
                 )
@@ -799,7 +844,7 @@ private fun Poster(
                 ) {
                     Icon(
                         Icons.Default.Check,
-                        contentDescription = "Vista",
+                        contentDescription = stringResource(R.string.common_view),
                         tint = Palette.Success,
                         modifier = Modifier.size(15.dp),
                     )
