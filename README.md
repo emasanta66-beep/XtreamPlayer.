@@ -42,6 +42,13 @@ Kotlin + Jetpack Compose + Media3 (ExoPlayer). Minimo Android 8.0 (API 26).
 
 Con JDK 17, Android SDK (platform 35) y Gradle 8.14: `gradle assembleDebug`.
 
+## Pruebas
+
+- `gradle testDebugUnitTest` corre las pruebas unitarias: limpieza de servidores y lectura de
+  URLs de lista, guardado del catálogo en el celular y textos del reproductor/descargas.
+- GitHub Actions las ejecuta en cada push y en cada Pull Request; si fallan, no se compila ni se
+  publica el APK.
+
 ## Notas
 
 - Se permite tráfico HTTP sin cifrar porque casi todos los servidores IPTV lo usan.

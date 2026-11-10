@@ -20,6 +20,7 @@ import java.net.URI
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.xml.parsers.DocumentBuilderFactory
+import app.xtreamplayer.R
 
 /** Una TV u otro reproductor DLNA/UPnP encontrado en la red local. */
 data class DlnaDevice(
@@ -86,7 +87,7 @@ class DlnaClient(context: Context) {
         runCatching {
             val text = soap(device, "GetPositionInfo", "<InstanceID>0</InstanceID>")
             val rel = Regex("<RelTime>([^<]+)</RelTime>").find(text)
-                ?.groupValues?.get(1) ?: throw IOException("La TV no informó la posición")
+                ?.groupValues?.get(1) ?: throw IOException(appContext.getString(R.string.tv_no_position))
             val duration = Regex("<TrackDuration>([^<]+)</TrackDuration>").find(text)
                 ?.groupValues?.get(1)
             DlnaPosition(parseTime(rel), duration?.let { parseTime(it) } ?: 0L)
@@ -246,11 +247,14 @@ class DlnaClient(context: Context) {
         return http.newCall(request).execute().use { resp ->
             val text = resp.body?.string().orEmpty()
             if (!resp.isSuccessful) {
-                throw IOException("La TV respondió HTTP ${resp.code}")
+                throw IOException(appContext.getString(R.string.tv_http_error, resp.code))
             }
             if (text.contains("<UPnPError", ignoreCase = true)) {
                 val code = Regex("<errorCode>(\\d+)</errorCode>").find(text)?.groupValues?.get(1)
-                throw IOException("La TV rechazó la orden${code?.let { " ($it)" } ?: ""}")
+                throw IOException(
+                    code?.let { appContext.getString(R.string.tv_command_rejected_code, it) }
+                        ?: appContext.getString(R.string.tv_command_rejected),
+                )
             }
             text
         }

@@ -1,5 +1,6 @@
 package app.xtreamplayer.data
 
+import android.content.Context
 import android.util.Base64
 import android.util.JsonReader
 import android.util.JsonToken
@@ -10,6 +11,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import app.xtreamplayer.R
 import java.io.EOFException
 import java.io.IOException
 import java.net.URLEncoder
@@ -31,8 +33,10 @@ object Http {
 }
 
 /** Cliente de la API "player_api.php" de Xtream Codes. Todas las llamadas son bloqueantes: usar en IO. */
-class XtreamApi(private val acc: Account) {
+class XtreamApi(private val acc: Account, private val context: Context) {
     val base: String = normalize(acc.server)
+
+    private fun s(id: Int, vararg args: Any): String = context.getString(id, *args)
 
     // ---------- Peticiones ----------
 
@@ -48,8 +52,8 @@ class XtreamApi(private val acc: Account) {
     private fun get(u: HttpUrl): String {
         val req = Request.Builder().url(u).header("User-Agent", Http.UA).build()
         Http.client.newCall(req).execute().use { r ->
-            if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
-            return r.body?.string() ?: throw IOException("Respuesta vacía")
+            if (!r.isSuccessful) throw IOException(s(R.string.error_http, r.code))
+            return r.body?.string() ?: throw IOException(s(R.string.error_empty_response))
         }
     }
 
@@ -57,8 +61,8 @@ class XtreamApi(private val acc: Account) {
 
     fun authenticate(): AuthInfo {
         val o = JSONObject(get(url()))
-        val ui = o.optJSONObject("user_info") ?: throw IOException("Respuesta inválida del servidor")
-        if (ui.opt("auth")?.toString() != "1") throw IOException("Usuario o contraseña incorrectos")
+        val ui = o.optJSONObject("user_info") ?: throw IOException(s(R.string.error_invalid_response))
+        if (ui.opt("auth")?.toString() != "1") throw IOException(s(R.string.error_bad_credentials))
         val exp = ui.str("exp_date")?.toLongOrNull()?.let {
             SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(it * 1000))
         }
@@ -92,7 +96,7 @@ class XtreamApi(private val acc: Account) {
             val id = f.intOf("stream_id") ?: return@streamList null
             Channel(
                 id = id,
-                name = f["name"] ?: "Canal $id",
+                name = f["name"] ?: s(R.string.fallback_channel, id),
                 icon = f["stream_icon"],
                 categoryId = f["category_id"] ?: "",
             )
@@ -106,7 +110,7 @@ class XtreamApi(private val acc: Account) {
             val id = f.intOf("stream_id") ?: return@streamList null
             Movie(
                 id = id,
-                name = f["name"] ?: "Película $id",
+                name = f["name"] ?: s(R.string.fallback_movie, id),
                 icon = f["stream_icon"],
                 categoryId = f["category_id"] ?: "",
                 ext = f["container_extension"] ?: "mp4",
@@ -130,7 +134,7 @@ class XtreamApi(private val acc: Account) {
             val id = f.intOf("series_id") ?: return@streamList null
             Series(
                 id = id,
-                name = f["name"] ?: "Serie $id",
+                name = f["name"] ?: s(R.string.fallback_series, id),
                 cover = f["cover"],
                 categoryId = f["category_id"] ?: "",
                 // La sinopsis completa se pide al abrir la serie; aquí basta un resumen (ahorra mucha memoria).
@@ -151,8 +155,8 @@ class XtreamApi(private val acc: Account) {
     ): List<T> {
         val req = Request.Builder().url(url(action)).header("User-Agent", Http.UA).build()
         return Http.client.newCall(req).execute().use { r ->
-            if (!r.isSuccessful) throw IOException("HTTP ${r.code}")
-            val body = r.body ?: throw IOException("Respuesta vacía")
+            if (!r.isSuccessful) throw IOException(s(R.string.error_http, r.code))
+            val body = r.body ?: throw IOException(s(R.string.error_empty_response))
             JsonReader(body.charStream().buffered(64 * 1024)).use { reader ->
                 reader.isLenient = true
                 // Si el servidor no devuelve un array (vacío, error, HTML...), la lista queda vacía.
@@ -225,7 +229,7 @@ class XtreamApi(private val acc: Account) {
             seasons.getOrPut(season) { mutableListOf() }.add(
                 Episode(
                     id = id,
-                    title = e.str("title") ?: "Episodio $number",
+                    title = e.str("title") ?: s(R.string.fallback_episode, number),
                     season = season,
                     number = number,
                     ext = e.str("container_extension") ?: "mp4",

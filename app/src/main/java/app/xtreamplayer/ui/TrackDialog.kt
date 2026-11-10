@@ -1,5 +1,6 @@
 package app.xtreamplayer.ui
 
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,11 +19,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.Tracks
+import app.xtreamplayer.R
 import java.util.Locale
 
 /** Una pista de audio o de subtítulos que el usuario puede elegir. */
@@ -34,7 +37,7 @@ data class TrackOption(
 )
 
 /** Lista las pistas de un tipo (C.TRACK_TYPE_AUDIO o C.TRACK_TYPE_TEXT) que el dispositivo puede reproducir. */
-fun Tracks.options(type: Int): List<TrackOption> {
+fun Tracks.options(type: Int, context: Context): List<TrackOption> {
     val out = ArrayList<TrackOption>()
     var n = 0
     for (g in groups) {
@@ -42,22 +45,27 @@ fun Tracks.options(type: Int): List<TrackOption> {
         for (i in 0 until g.length) {
             if (!g.isTrackSupported(i)) continue
             n++
-            out.add(TrackOption(g, i, trackLabel(g.getTrackFormat(i), n, type), g.isTrackSelected(i)))
+            out.add(TrackOption(g, i, trackLabel(g.getTrackFormat(i), n, type, context), g.isTrackSelected(i)))
         }
     }
     return out
 }
 
-private fun trackLabel(f: Format, n: Int, type: Int): String {
+private fun trackLabel(f: Format, n: Int, type: Int, context: Context): String {
     val lang = f.language
         ?.takeIf { it.isNotBlank() && it != "und" }
         ?.let { Locale.forLanguageTag(it).getDisplayLanguage(Locale.getDefault()) }
         ?.takeIf { it.isNotBlank() }
         ?.replaceFirstChar { it.uppercase() }
     val name = f.label?.takeIf { it.isNotBlank() }
-    val generic = if (type == C.TRACK_TYPE_AUDIO) "Audio $n" else "Subtítulo $n"
+    val generic = if (type == C.TRACK_TYPE_AUDIO) {
+        context.getString(R.string.track_audio, n)
+    } else {
+        context.getString(R.string.track_subtitle, n)
+    }
     val base = when {
-        name != null && lang != null && !name.contains(lang, ignoreCase = true) -> "$name ($lang)"
+        name != null && lang != null && !name.contains(lang, ignoreCase = true) ->
+            context.getString(R.string.track_name, name, lang)
         name != null -> name
         lang != null -> lang
         else -> generic
@@ -80,22 +88,22 @@ fun TrackDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Audio y subtítulos") },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } },
+        title = { Text(stringResource(R.string.player_audio_subs)) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) } },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                SectionTitle("Idioma / audio")
+                SectionTitle(stringResource(R.string.track_language_audio))
                 if (audio.isEmpty()) {
-                    Hint("Este contenido solo tiene una pista de audio.")
+                    Hint(stringResource(R.string.track_single_audio))
                 } else {
                     audio.forEach { o -> Choice(o.label, o.selected) { onAudio(o) } }
                 }
                 Spacer(Modifier.height(16.dp))
-                SectionTitle("Subtítulos")
+                SectionTitle(stringResource(R.string.track_subtitles))
                 if (text.isEmpty()) {
-                    Hint("Este contenido no trae subtítulos.")
+                    Hint(stringResource(R.string.track_no_subtitles))
                 } else {
-                    Choice("Desactivados", text.none { it.selected }) { onText(null) }
+                    Choice(stringResource(R.string.track_off), text.none { it.selected }) { onText(null) }
                     text.forEach { o -> Choice(o.label, o.selected) { onText(o) } }
                 }
             }

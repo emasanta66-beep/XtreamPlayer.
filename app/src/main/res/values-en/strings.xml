@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Xtream Player</string>
+
+    <!-- Common -->
+    <string name="common_back">Back</string>
+    <string name="common_close">Close</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_save">Save</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_retry">Retry</string>
+    <string name="common_refresh">Refresh</string>
+    <string name="common_search">Search</string>
+    <string name="common_all">All</string>
+    <string name="common_more">More options</string>
+    <string name="common_ready">Done</string>
+    <string name="common_first">First</string>
+    <string name="common_up">Move up</string>
+    <string name="common_down">Move down</string>
+    <string name="common_favorite_add">Add to favorites</string>
+    <string name="common_favorite_remove">Remove from favorites</string>
+    <string name="state_watched">Watched</string>
+    <string name="common_no_results">No results</string>
+    <string name="common_see_all">See all</string>
+    <string name="common_unknown_error">Unknown error</string>
+    <string name="common_download">Download</string>
+    <string name="common_downloaded">Downloaded</string>
+    <string name="common_downloading">Downloading…</string>
+    <string name="common_queued">Queued</string>
+    <string name="common_resume">Resume</string>
+
+    <!-- Accounts -->
+    <string name="accounts_empty_title">No playlists yet</string>
+    <string name="accounts_empty_body">Tap + to add your Xtream account (server, username and password) or paste the full playlist URL.</string>
+    <string name="accounts_add">Add playlist</string>
+    <string name="accounts_add_title">Add Xtream playlist</string>
+    <string name="accounts_edit">Edit</string>
+    <string name="accounts_edit_title">Edit playlist</string>
+    <string name="accounts_delete_title">Delete playlist</string>
+    <string name="accounts_delete_message">Delete \"%1$s\"? Its saved favorites will no longer be shown.</string>
+    <string name="accounts_name">Name (optional)</string>
+    <string name="accounts_server">Server or playlist URL</string>
+    <string name="accounts_insecure">This connection uses unencrypted HTTP; your username and password could be intercepted on the network. Use HTTPS if your provider supports it.</string>
+    <string name="accounts_user">Username</string>
+    <string name="accounts_password">Password</string>
+    <string name="accounts_url_help">If you paste a URL like get.php?username=…&amp;password=…, the username and password are filled in automatically.</string>
+    <string name="accounts_connecting">Connecting…</string>
+    <string name="accounts_expires">expires %1$s</string>
+    <string name="accounts_line">%1$s · %2$s</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_live">Live</string>
+    <string name="nav_movies">Movies</string>
+    <string name="nav_series">Series</string>
+    <string name="nav_favorites">Favorites</string>
+    <string name="nav_continue">Continue</string>
+    <string name="nav_downloads">Downloads</string>
+
+    <!-- Catalog -->
+    <string name="browse_search_hint">Search your playlist…</string>
+    <string name="browse_close_search">Close search</string>
+    <string name="browse_change_list">Switch playlist</string>
+    <string name="browse_live_hls">Live: HLS (.m3u8)</string>
+    <string name="browse_live_ts">Live: MPEG-TS (.ts)</string>
+    <string name="browse_check_update">Check for updates</string>
+    <string name="browse_empty_continue">What you start watching will appear here so you can pick up where you left off.</string>
+    <string name="browse_empty_favorites">Tap the heart on channels, movies or series to see them here.</string>
+    <string name="browse_sort_categories">Sort categories</string>
+    <string name="browse_sort_help">Put your favorite categories first. The order is saved for this playlist.</string>
+    <string name="browse_load_error">Could not load</string>
+    <string name="browse_remaining_min">%1$d min left</string>
+    <string name="browse_remove_continue">Remove from Continue watching</string>
+    <string name="browse_movie">Movie</string>
+    <string name="browse_series">Series</string>
+
+    <!-- Home -->
+    <string name="home_greeting">What are we watching?</string>
+    <string name="home_subtitle">All your entertainment, in one place</string>
+    <string name="home_continue_watching">Continue watching</string>
+    <string name="home_recent_movies">Recently added movies</string>
+    <string name="home_recent_series">Recently added series</string>
+    <string name="home_featured">FEATURED</string>
+    <string name="home_featured_continue">CONTINUE WATCHING</string>
+    <string name="home_empty_featured">Find something to watch</string>
+    <string name="home_remaining_min">%1$d min left</string>
+    <string name="home_explore">Browse catalog</string>
+    <string name="home_continue_button">Continue</string>
+    <string name="home_movies_and_series">Movies and series</string>
+    <string name="home_new">NEW</string>
+
+    <!-- Movie -->
+    <string name="movie_label">MOVIE</string>
+    <string name="movie_no_description">No description available.</string>
+    <string name="movie_play">Play movie</string>
+    <string name="movie_in_favorites">In favorites</string>
+    <string name="movie_favorites">Favorites</string>
+
+    <!-- Series -->
+    <string name="series_label">SERIES</string>
+    <string name="series_no_description">No description available.</string>
+    <string name="series_continue_from">Continue %1$s</string>
+    <string name="series_season">Season %1$d</string>
+    <string name="series_download_season">Download season %1$d</string>
+    <string name="series_episode">E%1$d · %2$s</string>
+    <string name="series_no_episodes">This series has no episodes available.</string>
+    <string name="series_load_error">Could not load series</string>
+
+    <!-- Player -->
+    <string name="player_channels">Channels</string>
+    <string name="player_epg_now">Now: %1$s (%2$s–%3$s)</string>
+    <string name="player_epg_next">Next: %1$s (%2$s)</string>
+    <string name="player_quality">Quality and resolution</string>
+    <string name="player_audio_subs">Audio and subtitles</string>
+    <string name="player_image">Picture: %1$s</string>
+    <string name="player_cast_short">Sending…</string>
+    <string name="player_cast">Send to TV</string>
+    <string name="player_live">LIVE</string>
+    <string name="player_quality_variant">Variant %1$d</string>
+    <string name="player_playing">Playing</string>
+    <string name="player_choose_quality">Choose quality</string>
+    <string name="player_single_quality">This content has only one quality (the one your provider delivers), so it cannot be changed.</string>
+    <string name="player_auto">Auto</string>
+    <string name="player_seek_back">−10 s</string>
+    <string name="player_seek_forward">+10 s</string>
+    <string name="player_cast_busy">Sending to TV…</string>
+    <string name="player_casting_title">Playing on TV</string>
+    <string name="player_casting_help">Use the TV remote to pause or change the volume. If you go back, the TV will keep playing.</string>
+    <string name="player_stop_tv">Stop TV</string>
+    <string name="player_playing_on">Playing on %1$s</string>
+    <string name="player_cast_error">Could not send to the TV. Check that it is on and on the same Wi-Fi.</string>
+    <string name="player_cast_stop_error">Could not stop the TV; use its remote.</string>
+    <string name="player_brightness">Brightness %1$d%%</string>
+    <string name="player_volume">Volume %1$d%%</string>
+    <string name="player_loading_info">Loading video information…</string>
+    <string name="player_play_error">Could not play this content (%1$s).</string>
+    <string name="player_image_original">Original</string>
+    <string name="player_image_zoom">Zoom</string>
+    <string name="player_image_stretch">Stretch</string>
+    <string name="player_image_width">Fit width</string>
+    <string name="player_image_height">Fit height</string>
+
+    <!-- Descripciones de botones del reproductor (leídas por TalkBack, no se muestran en pantalla) -->
+    <string name="player_pause">Pause</string>
+    <string name="player_play">Play</string>
+    <string name="player_back10">Rewind 10 seconds</string>
+    <string name="player_fwd10">Forward 10 seconds</string>
+    <string name="player_prev">Previous</string>
+    <string name="player_next">Next</string>
+    <string name="player_mute">Mute</string>
+    <string name="player_unmute">Unmute</string>
+    <string name="player_speed">Speed</string>
+    <string name="player_pip">Picture-in-picture</string>
+    <string name="player_progress_label">Video position</string>
+    <string name="downloads_pause">Pause download</string>
+
+    <!-- Tracks -->
+    <string name="track_audio">Audio %1$d</string>
+    <string name="track_subtitle">Subtitle %1$d</string>
+    <string name="track_name">%1$s (%2$s)</string>
+    <string name="track_language_audio">Language / audio</string>
+    <string name="track_single_audio">This content has only one audio track.</string>
+    <string name="track_subtitles">Subtitles</string>
+    <string name="track_no_subtitles">This content has no subtitles.</string>
+    <string name="track_off">Off</string>
+
+    <!-- Cast -->
+    <string name="cast_search_error">Could not search the network</string>
+    <string name="cast_send">Send to TV</string>
+    <string name="cast_help">The TV must be on and on the same Wi-Fi network. The TV will play the video with its own player.</string>
+    <string name="cast_searching">Searching for TVs on your network…</string>
+    <string name="cast_search_failed">Could not search: %1$s</string>
+    <string name="cast_none">No compatible TV found. Check that the TV is on, that DLNA is enabled and that the phone is on the same Wi-Fi.</string>
+    <string name="cast_search_again">Search again</string>
+
+    <!-- Downloads -->
+    <string name="downloads_downloaded">Downloaded</string>
+    <string name="downloads_resume">Resume download</string>
+    <string name="downloads_queued">Queued</string>
+    <string name="downloads_progress">Downloading %1$d%% · %2$s of %3$s</string>
+    <string name="downloads_progress_simple">Downloading… %1$s</string>
+    <string name="downloads_paused">Paused · tap to resume (%1$s)</string>
+    <string name="downloads_ready">Ready to watch offline · %1$s</string>
+    <string name="downloads_error">Error: %1$s · tap to retry</string>
+    <string name="downloads_empty">What you download will appear here. Tap the ⬇ arrow on a movie or episode to watch it without internet.</string>
+    <string name="downloads_delete">Delete download</string>
+    <string name="downloads_channel">Downloads</string>
+    <string name="downloads_notification_queued">%1$d downloads queued</string>
+    <string name="downloads_notification_downloading">Downloading…</string>
+    <string name="downloads_error_interrupted">Download interrupted</string>
+
+    <!-- Updates -->
+    <string name="update_new_available">New version available</string>
+    <string name="update_downloading">Downloading… %1$d%%</string>
+    <string name="update_install_help">Android will ask you to confirm the installation. Your accounts and favorites are kept.</string>
+    <string name="update_install">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_size">%1$.1f MB</string>
+    <string name="update_up_to_date">You already have the latest version (%1$s)</string>
+    <string name="update_check_failed">Could not check for updates. Check your connection.</string>
+    <string name="update_permission">Enable the install permission and tap Update again</string>
+    <string name="update_download_failed">Could not download the update. Try again.</string>
+    <string name="update_version_name">Version %1$d</string>
+
+    <!-- Cast to TV (DLNA) -->
+    <string name="tv_no_position">The TV did not report the position</string>
+    <string name="tv_http_error">The TV responded HTTP %1$d</string>
+    <string name="tv_command_rejected">The TV rejected the command</string>
+    <string name="tv_command_rejected_code">The TV rejected the command (%1$s)</string>
+
+    <!-- Data errors -->
+    <string name="error_complete_fields">Fill in server, username and password</string>
+    <string name="error_connect">Could not connect: %1$s</string>
+    <string name="error_open">Could not open the playlist: %1$s</string>
+    <string name="error_too_large">The playlist is too large for the phone\'s memory</string>
+    <string name="error_no_account">No playlist is open</string>
+    <string name="error_host_not_found">server not found (check the address)</string>
+    <string name="error_timeout">connection timed out</string>
+    <string name="error_download_episodes">Downloading %1$d episodes</string>
+    <string name="error_bad_credentials">Wrong username or password</string>
+    <string name="error_invalid_response">Invalid response from the server</string>
+    <string name="error_empty_response">Empty response</string>
+    <string name="error_http">HTTP %1$d</string>
+    <string name="error_resume_rejected">The server refused to resume; the partial file was discarded. Resume the download.</string>
+    <string name="error_server_response">The server responded %1$d</string>
+    <string name="error_range_invalid">Invalid range; the partial file was discarded. Resume the download.</string>
+    <string name="error_range_bad">The server sent an invalid range</string>
+    <string name="error_range_mismatch">Unsupported range; the partial file was discarded. Resume the download.</string>
+    <string name="error_range_incomplete">Incomplete range response; the partial file was discarded.</string>
+    <string name="error_not_video">The server did not send the video (connection limit on your playlist?)</string>
+    <string name="error_no_space">Not enough space. Free up space and resume.</string>
+    <string name="error_truncated">The download was cut off. Resume it.</string>
+    <string name="error_empty_file">The file arrived empty</string>
+    <string name="error_connection_lost">The connection dropped. Check your network and resume the download.</string>
+    <string name="fallback_channel">Channel %1$d</string>
+    <string name="fallback_movie">Movie %1$d</string>
+    <string name="fallback_series">Series %1$d</string>
+    <string name="fallback_episode">Episode %1$d</string>
+</resources>

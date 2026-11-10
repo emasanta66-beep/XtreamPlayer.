@@ -43,13 +43,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.xtreamplayer.AppViewModel
+import app.xtreamplayer.R
 import app.xtreamplayer.data.Account
+import app.xtreamplayer.data.XtreamApi
 
 @Composable
 fun AccountsScreen(vm: AppViewModel) {
@@ -69,11 +72,14 @@ fun AccountsScreen(vm: AppViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Xtream Player") },
+                title = { Text(stringResource(R.string.app_name)) },
                 navigationIcon = {
                     if (vm.stack.size > 1) {
                         IconButton(onClick = { vm.back() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.common_back),
+                            )
                         }
                     }
                 },
@@ -84,7 +90,7 @@ fun AccountsScreen(vm: AppViewModel) {
                 editing = null
                 dialogOpen = true
             }) {
-                Icon(Icons.Default.Add, contentDescription = "Añadir lista")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.accounts_add))
             }
         },
     ) { pad ->
@@ -94,11 +100,10 @@ fun AccountsScreen(vm: AppViewModel) {
                     modifier = Modifier.align(Alignment.Center).padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text("Aún no tienes listas", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.accounts_empty_title), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Toca + para añadir tu cuenta Xtream (servidor, usuario y contraseña) " +
-                            "o pega la URL completa de la lista.",
+                        stringResource(R.string.accounts_empty_body),
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -123,7 +128,11 @@ fun AccountsScreen(vm: AppViewModel) {
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                     Text(
-                                        "${acc.username} · ${acc.server.removePrefix("http://").removePrefix("https://")}",
+                                        stringResource(
+                                            R.string.accounts_line,
+                                            acc.username,
+                                            acc.server.removePrefix("http://").removePrefix("https://"),
+                                        ),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
@@ -133,9 +142,11 @@ fun AccountsScreen(vm: AppViewModel) {
                                 IconButton(onClick = {
                                     editing = acc
                                     dialogOpen = true
-                                }) { Icon(Icons.Default.Edit, contentDescription = "Editar") }
+                                }) {
+                                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.accounts_edit))
+                                }
                                 IconButton(onClick = { deleting = acc }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Eliminar")
+                                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.common_delete))
                                 }
                             }
                         }
@@ -160,15 +171,17 @@ fun AccountsScreen(vm: AppViewModel) {
     deleting?.let { acc ->
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("Eliminar lista") },
-            text = { Text("¿Eliminar \"${acc.name}\"? Sus favoritos guardados dejarán de mostrarse.") },
+            title = { Text(stringResource(R.string.accounts_delete_title)) },
+            text = { Text(stringResource(R.string.accounts_delete_message, acc.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     vm.deleteAccount(acc)
                     deleting = null
-                }) { Text("Eliminar") }
+                }) { Text(stringResource(R.string.common_delete)) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancelar") } },
+            dismissButton = {
+                TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.common_cancel)) }
+            },
         )
     }
 }
@@ -190,7 +203,13 @@ private fun AccountDialog(
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text(if (initial == null) "Añadir lista Xtream" else "Editar lista") },
+        title = {
+            Text(
+                stringResource(
+                    if (initial == null) R.string.accounts_add_title else R.string.accounts_edit_title,
+                ),
+            )
+        },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -199,14 +218,25 @@ private fun AccountDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nombre (opcional)") },
+                    label = { Text(stringResource(R.string.accounts_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = server,
-                    onValueChange = { server = it },
-                    label = { Text("Servidor o URL de la lista") },
+                    onValueChange = { raw ->
+                        // Si pegan la URL completa de la lista (get.php?username=…&password=…),
+                        // se rellena el servidor limpio y el usuario/contraseña solos.
+                        val parsed = XtreamApi.parseListUrl(raw)
+                        if (parsed != null) {
+                            server = parsed.first
+                            user = parsed.second
+                            pass = parsed.third
+                        } else {
+                            server = raw
+                        }
+                    },
+                    label = { Text(stringResource(R.string.accounts_server)) },
                     placeholder = { Text("http://servidor.com:8080") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -214,7 +244,7 @@ private fun AccountDialog(
                 )
                 if (usesInsecureHttp) {
                     Text(
-                        "Esta conexión usa HTTP sin cifrar; tu usuario y contraseña podrían ser interceptados en la red. Usa HTTPS si tu proveedor lo admite.",
+                        stringResource(R.string.accounts_insecure),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
@@ -222,20 +252,20 @@ private fun AccountDialog(
                 OutlinedTextField(
                     value = user,
                     onValueChange = { user = it },
-                    label = { Text("Usuario") },
+                    label = { Text(stringResource(R.string.accounts_user)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = pass,
                     onValueChange = { pass = it },
-                    label = { Text("Contraseña") },
+                    label = { Text(stringResource(R.string.accounts_password)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
-                    "Si pegas una URL tipo get.php?username=…&password=…, el usuario y la contraseña se rellenan solos.",
+                    stringResource(R.string.accounts_url_help),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -243,11 +273,15 @@ private fun AccountDialog(
         },
         confirmButton = {
             TextButton(enabled = !busy, onClick = { onSave(name, server, user, pass) }) {
-                Text(if (busy) "Conectando…" else "Guardar")
+                Text(
+                    stringResource(
+                        if (busy) R.string.accounts_connecting else R.string.common_save,
+                    ),
+                )
             }
         },
         dismissButton = {
-            TextButton(enabled = !busy, onClick = onDismiss) { Text("Cancelar") }
+            TextButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
         },
     )
 }

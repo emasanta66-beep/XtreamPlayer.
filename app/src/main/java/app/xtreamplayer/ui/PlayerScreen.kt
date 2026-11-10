@@ -2,10 +2,14 @@ package app.xtreamplayer.ui
 
 import android.app.Activity
 import android.app.PictureInPictureParams
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.util.Rational
 import android.view.View
 import android.widget.Toast
@@ -15,51 +19,16 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.displayCutoutPadding
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -68,18 +37,24 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -89,7 +64,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.C
-import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -105,24 +79,25 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import app.xtreamplayer.AppViewModel
-import app.xtreamplayer.data.Channel
+import app.xtreamplayer.R
 import app.xtreamplayer.data.DlnaClient
 import app.xtreamplayer.data.DlnaDevice
 import app.xtreamplayer.data.EpgItem
 import app.xtreamplayer.data.Episode
 import app.xtreamplayer.data.Http
 import app.xtreamplayer.data.PlayItem
-import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
+    val audio = remember(context) { context.getSystemService(AudioManager::class.java) }
 
     var error by remember { mutableStateOf<String?>(null) }
     var epg by remember { mutableStateOf<List<EpgItem>>(emptyList()) }
@@ -171,14 +146,14 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
 
     // Pistas de audio y subtítulos disponibles (se actualizan cuando el reproductor las descubre).
     var tracks by remember { mutableStateOf(exoPlayer.currentTracks) }
-    val audioOptions = remember(tracks) { tracks.options(C.TRACK_TYPE_AUDIO) }
-    val textOptions = remember(tracks) { tracks.options(C.TRACK_TYPE_TEXT) }
+    val audioOptions = remember(tracks, context) { tracks.options(C.TRACK_TYPE_AUDIO, context) }
+    val textOptions = remember(tracks, context) { tracks.options(C.TRACK_TYPE_TEXT, context) }
 
     // Capítulo siguiente (solo en series; null si es el último o si no es un episodio).
     var nextEpisode by remember { mutableStateOf<Episode?>(null) }
     LaunchedEffect(item.resumeKey) { nextEpisode = vm.nextEpisode(item) }
 
-    // En vivo: canales de la misma categoría (para ⏭/⏮ y para el panel "Canales").
+    // En vivo: canales de la misma categoría (para siguiente/anterior y para el panel "Canales").
     LaunchedEffect(item.isLive) { if (item.isLive) vm.ensureLive() }
     val channels = remember(vm.live.items, item.streamId) {
         if (item.isLive) vm.channelsInCategoryOf(item.streamId) else emptyList()
@@ -194,7 +169,12 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var showMenu by remember { mutableStateOf(false) }
     var showQuality by remember { mutableStateOf(false) }
     var qualityAuto by remember { mutableStateOf(true) }
-    var muted by remember { mutableStateOf(false) }
+    var muted by remember {
+        mutableStateOf(
+            audio.isStreamMute(AudioManager.STREAM_MUSIC) ||
+                audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0,
+        )
+    }
     var isPlaying by remember { mutableStateOf(false) }
     var buffering by remember { mutableStateOf(true) }
     var videoW by remember { mutableIntStateOf(0) }
@@ -203,11 +183,34 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var durationMs by remember { mutableStateOf(0L) }
     var seeking by remember { mutableStateOf(false) }
     var seekValue by remember { mutableStateOf(0f) }
+    // Aviso de ±10 s que aparece al hacer doble toque (0 = oculto).
+    var seekFlash by remember { mutableStateOf(0L) }
     var pokes by remember { mutableIntStateOf(0) }
+    // Gestos verticales: mitad izquierda = brillo, mitad derecha = volumen.
+    var brightness by remember {
+        mutableStateOf(activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.5f)
+    }
+    var gestureLabel by remember { mutableStateOf("") }
+    var gestureFraction by remember { mutableStateOf(0f) }
+    var gestureVisible by remember { mutableStateOf(false) }
     fun poke() {
         pokes++
     }
-    val qualityOptions = remember(tracks) { tracks.qualityOptions() }
+    val qualityOptions = remember(tracks, context) { tracks.qualityOptions(context) }
+
+    // D-pad / mando de TV: el reproductor recibe las teclas cuando no hay un botón con el foco.
+    val playerFocus = remember { FocusRequester() }
+    val topBarFocus = remember { FocusRequester() }
+    val bottomBarFocus = remember { FocusRequester() }
+    var playerFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(120)
+        runCatching { playerFocus.requestFocus() }
+    }
+    // Al ocultarse los controles, el foco vuelve al reproductor para que el D-pad siga funcionando.
+    LaunchedEffect(controlsVisible) {
+        if (!controlsVisible) runCatching { playerFocus.requestFocus() }
+    }
 
     // Enviar películas y episodios a una TV DLNA (la mayoría de LG son compatibles).
     val castScope = rememberCoroutineScope()
@@ -218,16 +221,75 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
     var castResumeAt by remember { mutableStateOf(0L) }
     var castDurationMs by remember { mutableStateOf(0L) }
 
+    // Valores actuales para cuando se cierra el reproductor: el DisposableEffect no se
+    // recrea al entrar o salir de la TV, así que no debe quedarse con el valor inicial.
+    val castDeviceNow by rememberUpdatedState(castDevice)
+    val castBusyNow by rememberUpdatedState(castBusy)
+
     // Tamaño de imagen y orientación (se conservan al cambiar de canal o capítulo).
     val videoMode = vm.videoMode.coerceIn(0, videoModes.lastIndex)
     val landscape = vm.playerLandscape
 
-    // ⏭ pasa al canal o capítulo siguiente; en vivo, ⏮ al canal anterior.
+    // El botón ⏭ pasa al canal o capítulo siguiente; en vivo, ⏮ al canal anterior.
     fun seekBy(deltaMs: Long) {
         val d = exoPlayer.duration
         val t = exoPlayer.currentPosition + deltaMs
         exoPlayer.seekTo(if (d != C.TIME_UNSET && d > 0) t.coerceIn(0L, d) else t.coerceAtLeast(0L))
         poke()
+    }
+
+    fun togglePlay() {
+        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+    }
+
+    fun showControls() {
+        controlsVisible = true
+        poke()
+    }
+
+    fun playNext() {
+        nextChannel?.let { vm.switchChannel(it) } ?: nextEpisode?.let { vm.playNextEpisode(item, it) }
+    }
+
+    /** Brillo de la ventana (0.05..1). No toca el brillo del sistema: solo dura mientras se ve el reproductor. */
+    fun applyBrightness(value: Float) {
+        brightness = value.coerceIn(0.05f, 1f)
+        activity?.window?.let { window ->
+            val attributes = window.attributes
+            attributes.screenBrightness = brightness
+            window.attributes = attributes
+        }
+    }
+
+    /** Volumen multimedia del sistema (0..1), el mismo que mueven los botones físicos. */
+    fun musicVolume(): Float {
+        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        return audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max
+    }
+
+    /** Ajusta el volumen multimedia del sistema; a cero se marca como silenciado. */
+    fun applyVolume(value: Float) {
+        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        val index = (value.coerceIn(0f, 1f) * max).roundToInt()
+        audio.setStreamVolume(AudioManager.STREAM_MUSIC, index, 0)
+        muted = index == 0
+    }
+
+    // Mantiene el icono de silencio al día aunque el volumen se cambie con los botones físicos.
+    DisposableEffect(audio) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                muted = audio.isStreamMute(AudioManager.STREAM_MUSIC) ||
+                    audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0
+            }
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter("android.media.VOLUME_CHANGED_ACTION"),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
 
     // Controles propios: se ocultan solos a los 4 s mientras se reproduce.
@@ -238,6 +300,20 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         }
     }
     val showOverlay = controlsVisible && !inPip && castDevice == null && !castBusy
+    // El aviso de ±10 s desaparece solo.
+    LaunchedEffect(seekFlash) {
+        if (seekFlash != 0L) {
+            delay(750)
+            seekFlash = 0L
+        }
+    }
+    // El aviso de brillo/volumen también se oculta solo.
+    LaunchedEffect(gestureVisible, gestureLabel) {
+        if (gestureVisible) {
+            delay(900)
+            gestureVisible = false
+        }
+    }
     LaunchedEffect(showOverlay) {
         if (!showOverlay) return@LaunchedEffect
         while (true) {
@@ -271,7 +347,8 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         advancing = true
         castScope.launch {
             val next = nextEpisode ?: vm.nextEpisode(item)
-            if (next != null) vm.playNextEpisode(item, next) else advancing = false
+            val opened = next != null && vm.playNextEpisode(item, next)
+            if (!opened) advancing = false
         }
     }
 
@@ -314,7 +391,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 if (item.isLive && item.altUrl != null && !usingAlt) {
                     usingAlt = true
                 } else {
-                    error = "No se pudo reproducir este contenido (${e.errorCodeName})."
+                    error = context.getString(R.string.player_play_error, e.errorCodeName)
                 }
             }
         }
@@ -324,7 +401,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             val duration = exoPlayer.duration
             val position = exoPlayer.currentPosition
             // Si se está enviando a la TV, el reproductor local está detenido: no se pisa el avance guardado.
-            if (castDevice == null && !castBusy && item.resumeKey != null &&
+            if (castDeviceNow == null && !castBusyNow && item.resumeKey != null &&
                 duration != C.TIME_UNSET && duration > 0 && position > 0
             ) {
                 vm.saveProgress(item, position, duration)
@@ -368,6 +445,12 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         onDispose {
             controller?.show(WindowInsetsCompat.Type.systemBars())
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            // El brillo ajustado con el gesto solo dura mientras se ve el reproductor.
+            activity?.window?.let { window ->
+                val attributes = window.attributes
+                attributes.screenBrightness = -1f
+                window.attributes = attributes
+            }
         }
     }
     LaunchedEffect(landscape) {
@@ -426,7 +509,11 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             castBusy = false
             result.onSuccess {
                 castDevice = device
-                Toast.makeText(context, "Reproduciendo en ${device.name}", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.player_playing_on, device.name),
+                    Toast.LENGTH_LONG,
+                ).show()
                 // La TV no avisa a Android del minuto que lleva: se le pregunta cada 30 s.
                 castScope.launch {
                     while (castDevice?.controlUrl == device.controlUrl) {
@@ -448,7 +535,7 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                 exoPlayer.play()
                 Toast.makeText(
                     context,
-                    "No se pudo enviar a la TV. Comprueba que esté encendida y en la misma Wi-Fi.",
+                    context.getString(R.string.player_cast_error),
                     Toast.LENGTH_LONG,
                 ).show()
             }
@@ -461,7 +548,11 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         castScope.launch {
             val info = dlna.position(device).getOrNull()
             dlna.stop(device).onFailure {
-                Toast.makeText(context, "No se pudo detener la TV; usa su mando.", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.player_cast_stop_error),
+                    Toast.LENGTH_LONG,
+                ).show()
             }
             val start = info?.positionMs?.takeIf { it > 0 } ?: castResumeAt
             if (info != null && info.positionMs > 0) {
@@ -481,6 +572,81 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         Modifier
             .fillMaxSize()
             .background(Color.Black)
+            // Atajos de D-pad y de mando de TV (OK, flechas, play/pausa, siguiente/anterior).
+            // Va en la raíz para que también funcionen con el foco en un botón de las barras.
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                // Los diálogos y el panel de canales navegan con sus propias teclas.
+                if (showMenu || showTracks || showQuality || showChannels || showCast) {
+                    return@onPreviewKeyEvent false
+                }
+                when (event.key) {
+                    Key.MediaPlayPause, Key.MediaPlay, Key.MediaPause -> {
+                        togglePlay()
+                        true
+                    }
+                    Key.MediaNext -> {
+                        if (nextChannel == null && nextEpisode == null) false else {
+                            playNext()
+                            true
+                        }
+                    }
+                    Key.MediaPrevious -> {
+                        val prev = prevChannel
+                        if (prev == null) false else {
+                            vm.switchChannel(prev)
+                            true
+                        }
+                    }
+                    Key.Menu -> {
+                        showMenu = true
+                        true
+                    }
+                    else -> {
+                        // Con los controles visibles y un botón enfocado, las flechas navegan por los botones.
+                        if (controlsVisible && !playerFocused) return@onPreviewKeyEvent false
+                        when (event.key) {
+                            Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.Spacebar -> {
+                                if (controlsVisible) togglePlay() else showControls()
+                                true
+                            }
+                            Key.DirectionLeft -> {
+                                showControls()
+                                if (!item.isLive) {
+                                    seekBy(-10_000L)
+                                    seekFlash = -10_000L
+                                }
+                                true
+                            }
+                            Key.DirectionRight -> {
+                                showControls()
+                                if (!item.isLive) {
+                                    seekBy(10_000L)
+                                    seekFlash = 10_000L
+                                }
+                                true
+                            }
+                            Key.DirectionUp -> {
+                                if (controlsVisible) {
+                                    runCatching { topBarFocus.requestFocus() }
+                                } else {
+                                    showControls()
+                                }
+                                true
+                            }
+                            Key.DirectionDown -> {
+                                if (controlsVisible) {
+                                    runCatching { bottomBarFocus.requestFocus() }
+                                } else {
+                                    showControls()
+                                }
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                }
+            }
             .pointerInput(Unit) {} // evita que los toques lleguen a la pantalla de debajo
     ) {
         AndroidView(
@@ -506,163 +672,108 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             Box(
                 Modifier
                     .fillMaxSize()
+                    .focusRequester(playerFocus)
+                    .onFocusChanged { playerFocused = it.isFocused }
+                    .focusable()
+                    // Arrastrar en vertical: mitad izquierda brillo, mitad derecha volumen.
+                    .pointerInput(Unit) {
+                        var mode = 0
+                        // El volumen se cuantiza por pasos (1/15); se acumula en continuo para no perder el gesto.
+                        var startVolume = 0f
+                        detectVerticalDragGestures(
+                            onDragStart = { offset ->
+                                mode = if (offset.x < size.width / 2f) 1 else 2
+                                if (mode == 2) startVolume = musicVolume()
+                            },
+                            onDragEnd = { gestureVisible = false },
+                            onDragCancel = { gestureVisible = false },
+                        ) { change, dragAmount ->
+                            change.consume()
+                            val delta = -dragAmount / size.height.toFloat()
+                            when (mode) {
+                                1 -> {
+                                    applyBrightness(brightness + delta)
+                                    gestureLabel = context.getString(
+                                        R.string.player_brightness,
+                                        (brightness * 100).roundToInt(),
+                                    )
+                                    gestureFraction = brightness
+                                }
+                                2 -> {
+                                    startVolume = (startVolume + delta).coerceIn(0f, 1f)
+                                    applyVolume(startVolume)
+                                    gestureLabel = context.getString(
+                                        R.string.player_volume,
+                                        (startVolume * 100).roundToInt(),
+                                    )
+                                    gestureFraction = startVolume
+                                }
+                            }
+                            if (mode != 0) gestureVisible = true
+                        }
+                    }
                     .pointerInput(item.isLive) {
                         detectTapGestures(
                             onTap = { controlsVisible = !controlsVisible },
                             onDoubleTap = { o ->
-                                if (!item.isLive) seekBy(if (o.x < size.width / 2f) -10_000L else 10_000L)
+                                if (!item.isLive) {
+                                    val delta = if (o.x < size.width / 2f) -10_000L else 10_000L
+                                    seekBy(delta)
+                                    seekFlash = delta
+                                }
                             },
                         )
                     }
             )
         }
 
-        if (buffering && error == null && showOverlayOrPlaying(inPip, castDevice != null, castBusy)) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center).size(44.dp),
-                color = Color.White,
-                strokeWidth = 3.dp,
-            )
-        }
+        PlayerBuffering(
+            visible = buffering && error == null && showOverlayOrPlaying(inPip, castDevice != null, castBusy),
+            modifier = Modifier.align(Alignment.Center),
+        )
 
-        // Barra superior: volver, canales (en vivo), título, resolución, información y menú ⋮.
+        // Aviso rápido de −10 s / +10 s al hacer doble toque.
+        PlayerSeekFlash(
+            deltaMs = seekFlash,
+            modifier = Modifier.align(Alignment.Center),
+        )
+
+        // Nivel de brillo/volumen al arrastrar en vertical.
+        PlayerGestureHint(
+            visible = gestureVisible,
+            label = gestureLabel,
+            fraction = gestureFraction,
+            modifier = Modifier.align(Alignment.Center),
+        )
+
+        // Barra superior: volver, canales (en vivo), título, resolución, información y menú.
         AnimatedVisibility(
             visible = showOverlay,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopStart),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent)))
-                    .displayCutoutPadding()
-                    .padding(horizontal = 4.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                IconButton(onClick = { vm.back() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Color.White)
-                }
-                if (item.isLive && channels.size > 1) {
-                    Row(
-                        modifier = Modifier
-                            .padding(top = 6.dp, end = 8.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Color(0x66000000))
-                            .clickable {
-                                poke()
-                                showChannels = true
-                            }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.List,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text("Canales", color = Color.White, style = MaterialTheme.typography.labelLarge)
-                    }
-                }
-                Column(Modifier.weight(1f).padding(top = 6.dp)) {
-                    Text(
-                        item.title,
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    val now = System.currentTimeMillis()
-                    val current = epg.firstOrNull { now in it.start..it.end } ?: epg.firstOrNull()
-                    val next = current?.let { c -> epg.firstOrNull { it.start >= c.end } }
-                    if (current != null) {
-                        Text(
-                            "Ahora: ${current.title} (${timeFormat.format(current.start)}–${timeFormat.format(current.end)})",
-                            color = Color(0xCCFFFFFF),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (next != null) {
-                        Text(
-                            "Después: ${next.title} (${timeFormat.format(next.start)})",
-                            color = Color(0x99FFFFFF),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                if (videoH > 0) {
-                    Text(
-                        resolutionLabel(videoH),
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .padding(top = 10.dp, end = 4.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0x66000000))
-                            .clickable {
-                                poke()
-                                showQuality = true
-                            }
-                            .padding(horizontal = 8.dp, vertical = 3.dp),
-                    )
-                }
-                IconButton(onClick = {
-                    poke()
-                    showQuality = true
-                }) {
-                    Icon(Icons.Default.Info, contentDescription = "Calidad y resolución", tint = Color.White)
-                }
-                Box {
-                    IconButton(onClick = {
-                        poke()
-                        showMenu = true
-                    }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Más opciones", tint = Color.White)
-                    }
-                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        if (audioOptions.size > 1 || textOptions.isNotEmpty()) {
-                            DropdownMenuItem(
-                                text = { Text("Audio y subtítulos") },
-                                onClick = {
-                                    showMenu = false
-                                    showTracks = true
-                                },
-                            )
-                        }
-                        DropdownMenuItem(
-                            text = { Text("Calidad y resolución") },
-                            onClick = {
-                                showMenu = false
-                                showQuality = true
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Imagen: ${videoModes[videoMode].label}") },
-                            onClick = {
-                                showMenu = false
-                                vm.chooseVideoMode((videoMode + 1) % videoModes.size)
-                            },
-                        )
-                        if (!item.isLive) {
-                            DropdownMenuItem(
-                                text = { Text(if (castBusy) "Enviando…" else "Enviar a TV") },
-                                enabled = !castBusy,
-                                onClick = {
-                                    showMenu = false
-                                    showCast = true
-                                },
-                            )
-                        }
-                    }
-                }
-            }
+            PlayerTopBar(
+                title = item.title,
+                isLive = item.isLive,
+                hasChannels = channels.size > 1,
+                epg = epg,
+                timeFormat = timeFormat,
+                videoHeight = videoH,
+                videoModeLabel = stringResource(videoModes[videoMode].labelRes),
+                audioAvailable = audioOptions.size > 1 || textOptions.isNotEmpty(),
+                casting = castBusy,
+                menuOpen = showMenu,
+                onMenuOpenChange = { showMenu = it },
+                onBack = { vm.back() },
+                onChannels = { showChannels = true },
+                onQuality = { showQuality = true },
+                onTracks = { showTracks = true },
+                onCycleVideoMode = { vm.chooseVideoMode((videoMode + 1) % videoModes.size) },
+                onCast = { showCast = true },
+                onPoke = { poke() },
+                backFocus = topBarFocus,
+            )
         }
 
         // Barra inferior: pausa, ±10 s, tiempo, volumen, subtítulos, velocidad, PiP y orientación.
@@ -672,129 +783,53 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            val wide = LocalConfiguration.current.screenWidthDp >= 600
-            val nextEp = nextEpisode
-            val transport: @Composable () -> Unit = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (prevChannel != null) {
-                        CtlButton({
-                            poke()
-                            vm.switchChannel(prevChannel)
-                        }) { GlyphIcon(Glyph.PREV) }
-                    }
-                    CtlButton({
-                        poke()
-                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
-                    }) { GlyphIcon(if (isPlaying) Glyph.PAUSE else Glyph.PLAY, size = 30) }
-                    if (!item.isLive) {
-                        CtlButton({ seekBy(-10_000L) }) { GlyphIcon(Glyph.BACK10) }
-                        CtlButton({ seekBy(10_000L) }) { GlyphIcon(Glyph.FWD10) }
-                    }
-                    if (nextChannel != null) {
-                        CtlButton({
-                            poke()
-                            vm.switchChannel(nextChannel)
-                        }) { GlyphIcon(Glyph.NEXT) }
-                    } else if (nextEp != null) {
-                        CtlButton({
-                            poke()
-                            vm.playNextEpisode(item, nextEp)
-                        }) { GlyphIcon(Glyph.NEXT) }
-                    }
-                }
-            }
-            val seekArea: @Composable (Modifier) -> Unit = { m ->
-                if (item.isLive) {
-                    Row(m.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(9.dp).clip(CircleShape).background(Color(0xFFFF3B30)))
-                        Spacer(Modifier.width(6.dp))
-                        Text("EN VIVO", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Column(m) {
-                        val dur = durationMs.coerceAtLeast(1L).toFloat()
-                        val shown = if (seeking) seekValue else positionMs.toFloat()
-                        Slider(
-                            value = shown.coerceIn(0f, dur),
-                            onValueChange = {
-                                seeking = true
-                                seekValue = it
-                                poke()
-                            },
-                            onValueChangeFinished = {
-                                exoPlayer.seekTo(seekValue.toLong())
-                                positionMs = seekValue.toLong()
-                                seeking = false
-                            },
-                            valueRange = 0f..dur,
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.White,
-                                activeTrackColor = Color.White,
-                                inactiveTrackColor = Color(0x55FFFFFF),
-                            ),
-                        )
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(formatTime(shown.toLong()), color = Color.White, style = MaterialTheme.typography.labelMedium)
-                            Text(formatTime(durationMs), color = Color(0xCCFFFFFF), style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
-                }
-            }
-            val tools: @Composable () -> Unit = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CtlButton({
-                        poke()
-                        muted = !muted
-                        exoPlayer.volume = if (muted) 0f else 1f
-                    }) { GlyphIcon(if (muted) Glyph.MUTE else Glyph.VOLUME) }
-                    if (audioOptions.size > 1 || textOptions.isNotEmpty()) {
-                        CtlButton({
-                            poke()
-                            showTracks = true
-                        }) { GlyphIcon(Glyph.SUBS) }
-                    }
-                    if (!item.isLive) {
-                        CtlButton({
-                            poke()
-                            speedIndex = (speedIndex + 1) % speeds.size
-                        }) {
-                            Text(speedLabels[speedIndex], color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
-                    }
-                    if (supportsPip) CtlButton({ enterPip() }) { GlyphIcon(Glyph.PIP) }
-                }
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .displayCutoutPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Color(0xE60C0C12))
-                    .pointerInput(Unit) { detectTapGestures { } } // los toques en la barra no la ocultan
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            ) {
-                if (wide) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        transport()
-                        seekArea(Modifier.weight(1f).padding(horizontal = 8.dp))
-                        tools()
-                    }
-                } else {
-                    seekArea(Modifier.fillMaxWidth())
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { transport() }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { tools() }
-                }
-            }
+            PlayerBottomBar(
+                isLive = item.isLive,
+                isPlaying = isPlaying,
+                hasPrevChannel = prevChannel != null,
+                hasNextChannel = nextChannel != null,
+                hasNextEpisode = nextEpisode != null,
+                hasTracks = audioOptions.size > 1 || textOptions.isNotEmpty(),
+                supportsPip = supportsPip,
+                muted = muted,
+                positionMs = positionMs,
+                durationMs = durationMs,
+                seeking = seeking,
+                seekValue = seekValue,
+                speedLabel = speedLabels[speedIndex],
+                onPrevChannel = { prevChannel?.let { vm.switchChannel(it) } },
+                onNext = {
+                    nextChannel?.let { vm.switchChannel(it) }
+                        ?: nextEpisode?.let { vm.playNextEpisode(item, it) }
+                },
+                onPlayPause = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() },
+                onSeek = { seekBy(it) },
+                onSeekChange = {
+                    seeking = true
+                    seekValue = it
+                },
+                onSeekFinished = {
+                    exoPlayer.seekTo(seekValue.toLong())
+                    positionMs = seekValue.toLong()
+                    seeking = false
+                },
+                onMute = {
+                    audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, 0)
+                    muted = audio.isStreamMute(AudioManager.STREAM_MUSIC) ||
+                        audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0
+                },
+                onTracks = { showTracks = true },
+                onCycleSpeed = { speedIndex = (speedIndex + 1) % speeds.size },
+                onPip = { enterPip() },
+                onPoke = { poke() },
+                playPauseFocus = bottomBarFocus,
+            )
         }
 
         if (showQuality && !inPip) {
             val vf = exoPlayer.videoFormat
             val info = if (vf == null || vf.height <= 0) {
-                "Cargando información del video…"
+                stringResource(R.string.player_loading_info)
             } else {
                 buildString {
                     append("${vf.width}×${vf.height} (${resolutionLabel(vf.height)})")
@@ -862,7 +897,8 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
                     .pointerInput(Unit) { detectTapGestures { showChannels = false } }
             )
             ChannelPanel(
-                title = vm.liveCategoryName(channels.first().categoryId) ?: "Canales",
+                title = vm.liveCategoryName(channels.first().categoryId)
+                    ?: stringResource(R.string.player_channels),
                 channels = channels,
                 currentId = item.streamId,
                 onPick = { ch -> vm.switchChannel(ch) },
@@ -873,23 +909,15 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
 
         if (!inPip) {
             error?.let { message ->
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .background(Color(0xE6000000), RoundedCornerShape(12.dp))
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(message, color = Color.White, textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = {
-                            usingAlt = false
-                            attempt++
-                        }) { Text("Reintentar") }
-                        OutlinedButton(onClick = { vm.back() }) { Text("Volver") }
-                    }
-                }
+                PlayerErrorCard(
+                    message = message,
+                    onRetry = {
+                        usingAlt = false
+                        attempt++
+                    },
+                    onBack = { vm.back() },
+                    modifier = Modifier.align(Alignment.Center),
+                )
             }
         }
 
@@ -902,178 +930,37 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
         }
 
         if (castBusy && !inPip) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .background(Color(0xE6000000), RoundedCornerShape(12.dp))
-                    .pointerInput(Unit) { detectTapGestures { } }
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(28.dp),
-                    strokeWidth = 3.dp,
-                )
-                Spacer(Modifier.height(12.dp))
-                Text("Enviando a TV…", color = Color.White)
-            }
+            PlayerCastBusyCard(modifier = Modifier.align(Alignment.Center))
         }
 
         // Mientras la TV reproduce, el teléfono queda como mando: se oculta el video local.
         castDevice?.let { device ->
             if (!inPip) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xF2000000))
-                        .displayCutoutPadding()
-                        .pointerInput(Unit) { detectTapGestures { } }
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        "Reproduciendo en TV",
-                        color = Color.White,
-                        style = MaterialTheme.typography.headlineSmall,
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        device.name,
-                        color = Color(0xFFB3E5FC),
-                        style = MaterialTheme.typography.titleMedium,
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Usa el mando de la TV para pausar o cambiar el volumen. Si vuelves atrás, la TV seguirá reproduciendo.",
-                        color = Color(0xCCFFFFFF),
-                        textAlign = TextAlign.Center,
-                    )
-                    Spacer(Modifier.height(24.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = { stopCasting() }) { Text("Detener TV") }
-                        OutlinedButton(onClick = { vm.back() }) { Text("Volver") }
-                    }
-                }
+                PlayerCastingCard(
+                    deviceName = device.name,
+                    onStop = { stopCasting() },
+                    onBack = { vm.back() },
+                    modifier = Modifier.align(Alignment.Center),
+                )
             }
         }
     }
 }
 
 /** Tamaños de imagen del reproductor; el botón "Imagen" recorre esta lista. */
-private class VideoMode(val label: String, val resizeMode: Int)
+private class VideoMode(@androidx.annotation.StringRes val labelRes: Int, val resizeMode: Int)
 
 private val videoModes = listOf(
-    VideoMode("Original", AspectRatioFrameLayout.RESIZE_MODE_FIT), // todo el video, con barras si hace falta
-    VideoMode("Ampliar", AspectRatioFrameLayout.RESIZE_MODE_ZOOM), // llena la pantalla recortando los bordes
-    VideoMode("Estirar", AspectRatioFrameLayout.RESIZE_MODE_FILL), // llena la pantalla deformando la imagen
-    VideoMode("Al ancho", AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH),
-    VideoMode("Al alto", AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT),
+    VideoMode(R.string.player_image_original, AspectRatioFrameLayout.RESIZE_MODE_FIT), // todo el video, con barras si hace falta
+    VideoMode(R.string.player_image_zoom, AspectRatioFrameLayout.RESIZE_MODE_ZOOM), // llena la pantalla recortando los bordes
+    VideoMode(R.string.player_image_stretch, AspectRatioFrameLayout.RESIZE_MODE_FILL), // llena la pantalla deformando la imagen
+    VideoMode(R.string.player_image_width, AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH),
+    VideoMode(R.string.player_image_height, AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT),
 )
 
-@Composable
-private fun ChannelPanel(
-    title: String,
-    channels: List<Channel>,
-    currentId: Int?,
-    onPick: (Channel) -> Unit,
-    onClose: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val index = channels.indexOfFirst { it.id == currentId }
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = (index - 2).coerceAtLeast(0))
-    Column(
-        modifier = modifier
-            .fillMaxHeight()
-            .width(320.dp)
-            .background(Color(0xF2101018))
-            .displayCutoutPadding()
-            .pointerInput(Unit) {} // los toques dentro del panel no lo cierran
-            .padding(top = 8.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                title,
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = onClose) {
-                Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
-            }
-        }
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            items(channels, key = { it.id }) { ch ->
-                val current = ch.id == currentId
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(if (current) Color(0x33FFFFFF) else Color.Transparent)
-                        .clickable { if (current) onClose() else onPick(ch) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    AsyncImage(
-                        model = ch.icon,
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(40.dp),
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        ch.name,
-                        color = Color.White,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    if (current) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Reproduciendo", tint = Color.White)
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** Botón redondo de la barra de controles. */
-@Composable
-private fun CtlButton(onClick: () -> Unit, content: @Composable () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(42.dp)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { content() }
-}
-
+/** Verdadero cuando tiene sentido mostrar buffering: ni en PiP ni enviando a la TV. */
 private fun showOverlayOrPlaying(inPip: Boolean, casting: Boolean, castBusy: Boolean) =
     !inPip && !casting && !castBusy
-
-private fun resolutionLabel(height: Int): String = when {
-    height >= 2000 -> "4K"
-    height >= 1400 -> "2K"
-    height >= 1000 -> "1080p"
-    height >= 700 -> "720p"
-    height >= 500 -> "576p"
-    else -> "${height}p"
-}
-
-private fun formatTime(ms: Long): String {
-    val t = (ms / 1000).coerceAtLeast(0L)
-    val h = t / 3600
-    val m = (t % 3600) / 60
-    val sec = t % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
-}
 
 private fun Context.findActivity(): Activity? {
     var c: Context = this

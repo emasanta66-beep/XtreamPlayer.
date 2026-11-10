@@ -31,10 +31,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import app.xtreamplayer.R
 import app.xtreamplayer.data.DlnaClient
 import app.xtreamplayer.data.DlnaDevice
 
@@ -54,6 +56,7 @@ fun CastDialog(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
+    val fallbackSearchError = stringResource(R.string.cast_search_error)
 
     LaunchedEffect(refresh) {
         loading = true
@@ -62,7 +65,7 @@ fun CastDialog(
         try {
             devices = client.discover()
         } catch (e: Exception) {
-            error = e.message ?: "No se pudo buscar en la red"
+            error = e.message ?: fallbackSearchError
         } finally {
             loading = false
         }
@@ -81,7 +84,7 @@ fun CastDialog(
             tonalElevation = 6.dp,
         ) {
             Column(Modifier.padding(20.dp)) {
-                Text("Enviar a TV", style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.cast_send), style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     title,
@@ -91,7 +94,7 @@ fun CastDialog(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "La TV debe estar encendida y en la misma red Wi-Fi. La TV reproducirá el video con su propio reproductor.",
+                    stringResource(R.string.cast_help),
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(12.dp))
@@ -111,18 +114,18 @@ fun CastDialog(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
                             )
-                            Text("Buscando TVs en tu red…", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.cast_searching), style = MaterialTheme.typography.bodyMedium)
                         }
 
                         error != null -> Text(
-                            "No se pudo buscar: $error",
+                            stringResource(R.string.cast_search_failed, error ?: ""),
                             modifier = Modifier.align(Alignment.Center),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error,
                         )
 
                         devices.isEmpty() -> Text(
-                            "No se encontró ninguna TV compatible. Comprueba que la TV esté encendida, que el DLNA esté activo y que el móvil esté en la misma Wi-Fi.",
+                            stringResource(R.string.cast_none),
                             modifier = Modifier.align(Alignment.Center),
                             style = MaterialTheme.typography.bodyMedium,
                         )
@@ -161,10 +164,10 @@ fun CastDialog(
                     horizontalArrangement = Arrangement.End,
                 ) {
                     TextButton(onClick = { refresh++ }, enabled = !loading) {
-                        Text("Buscar de nuevo")
+                        Text(stringResource(R.string.cast_search_again))
                     }
                     TextButton(onClick = onDismiss) {
-                        Text("Cerrar")
+                        Text(stringResource(R.string.common_close))
                     }
                 }
             }

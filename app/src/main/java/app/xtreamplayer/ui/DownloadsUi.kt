@@ -31,11 +31,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.xtreamplayer.AppViewModel
+import app.xtreamplayer.R
 import app.xtreamplayer.data.DlStatus
 import app.xtreamplayer.data.DownloadItem
 
@@ -50,11 +54,20 @@ fun DownloadBadge(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Etiqueta única para TalkBack: uno de estos títulos se lee al enfocar el botón,
+    // junto a la acción de tocar (descargar, pausar o reanudar).
+    val label = when (d?.status) {
+        null -> stringResource(R.string.common_download)
+        DlStatus.DONE -> stringResource(R.string.downloads_downloaded)
+        DlStatus.DOWNLOADING, DlStatus.QUEUED -> stringResource(R.string.downloads_pause)
+        DlStatus.PAUSED, DlStatus.ERROR -> stringResource(R.string.downloads_resume)
+    }
     Box(
         modifier = modifier
             .size(36.dp)
             .clip(CircleShape)
-            .background(Color(0x99000000))
+            .background(Palette.ScrimSoft)
+            .semantics { contentDescription = label }
             .clickable {
                 when (d?.status) {
                     null -> onStart()
@@ -68,8 +81,8 @@ fun DownloadBadge(
             null -> Text("⬇", color = Color.White, fontSize = 16.sp)
             DlStatus.DONE -> Icon(
                 Icons.Default.Check,
-                contentDescription = "Descargado",
-                tint = Color(0xFF4CAF50),
+                contentDescription = null, // ya lo anuncia la etiqueta del contenedor
+                tint = Palette.Success,
                 modifier = Modifier.size(20.dp),
             )
             DlStatus.DOWNLOADING -> {
@@ -95,24 +108,34 @@ fun DownloadBadge(
             )
             DlStatus.PAUSED, DlStatus.ERROR -> Icon(
                 Icons.Default.PlayArrow,
-                contentDescription = "Reanudar descarga",
-                tint = if (d.status == DlStatus.ERROR) Color(0xFFFF8A80) else Color.White,
+                contentDescription = null, // ya lo anuncia la etiqueta del contenedor
+                tint = if (d.status == DlStatus.ERROR) Palette.Error else Color.White,
                 modifier = Modifier.size(22.dp),
             )
         }
     }
 }
 
-private fun mb(bytes: Long): String = "${bytes / (1024 * 1024)} MB"
-
+@Composable
 private fun statusText(d: DownloadItem): String = when (d.status) {
-    DlStatus.QUEUED -> "En cola"
+    DlStatus.QUEUED -> stringResource(R.string.downloads_queued)
     DlStatus.DOWNLOADING ->
-        if (d.total > 0) "Descargando ${(d.bytes * 100 / d.total).coerceIn(0, 100)}% · ${mb(d.bytes)} de ${mb(d.total)}"
-        else "Descargando… ${mb(d.bytes)}"
-    DlStatus.PAUSED -> "En pausa · toca para reanudar (${mb(d.bytes)})"
-    DlStatus.DONE -> "Listo para ver sin conexión · ${mb(d.bytes)}"
-    DlStatus.ERROR -> "Error: ${d.error ?: "no se pudo descargar"} · toca para reintentar"
+        if (d.total > 0) {
+            stringResource(
+                R.string.downloads_progress,
+                (d.bytes * 100 / d.total).coerceIn(0, 100),
+                formatMb(d.bytes),
+                formatMb(d.total),
+            )
+        } else {
+            stringResource(R.string.downloads_progress_simple, formatMb(d.bytes))
+        }
+    DlStatus.PAUSED -> stringResource(R.string.downloads_paused, formatMb(d.bytes))
+    DlStatus.DONE -> stringResource(R.string.downloads_ready, formatMb(d.bytes))
+    DlStatus.ERROR -> stringResource(
+        R.string.downloads_error,
+        d.error ?: stringResource(R.string.common_unknown_error),
+    )
 }
 
 @Composable
@@ -127,9 +150,9 @@ fun DownloadsTab(vm: AppViewModel, query: String, modifier: Modifier) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
                 if (all.isEmpty()) {
-                    "Aquí verás lo que descargues. Toca la flecha ⬇ en una película o en un capítulo para verlo sin internet."
+                    stringResource(R.string.downloads_empty)
                 } else {
-                    "Sin resultados"
+                    stringResource(R.string.common_no_results)
                 },
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -178,7 +201,7 @@ fun DownloadsTab(vm: AppViewModel, query: String, modifier: Modifier) {
                 IconButton(onClick = { vm.deleteDownload(d.key) }) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Borrar descarga",
+                        contentDescription = stringResource(R.string.downloads_delete),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

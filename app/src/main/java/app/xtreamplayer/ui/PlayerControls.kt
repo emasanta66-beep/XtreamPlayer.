@@ -1,5 +1,6 @@
 package app.xtreamplayer.ui
 
+import android.content.Context
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -30,11 +33,15 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Tracks
+import app.xtreamplayer.R
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -153,7 +160,7 @@ private fun DrawScope.drawCircularArrow(color: Color, s: Float, forward: Boolean
 class QualityOption(val label: String, val group: Tracks.Group, val index: Int, val selected: Boolean)
 
 /** Variantes de video que el dispositivo puede reproducir, de mayor a menor resolución. */
-fun Tracks.qualityOptions(): List<QualityOption> {
+fun Tracks.qualityOptions(context: Context): List<QualityOption> {
     val out = ArrayList<QualityOption>()
     for (g in groups) {
         if (g.type != androidx.media3.common.C.TRACK_TYPE_VIDEO) continue
@@ -163,7 +170,7 @@ fun Tracks.qualityOptions(): List<QualityOption> {
             val h = f.height
             val name = when {
                 h > 0 -> "${h}p"
-                else -> "Variante ${out.size + 1}"
+                else -> context.getString(R.string.player_quality_variant, out.size + 1)
             }
             val rate = if (f.bitrate > 0) " · %.1f Mbps".format(f.bitrate / 1_000_000f) else ""
             out.add(QualityOption(name + rate, g, i, g.isTrackSelected(i)))
@@ -183,12 +190,12 @@ fun QualityDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Calidad y resolución") },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } },
+        title = { Text(stringResource(R.string.player_quality)) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) } },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "En reproducción",
+                    stringResource(R.string.player_playing),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(bottom = 4.dp),
@@ -196,19 +203,19 @@ fun QualityDialog(
                 Text(info, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "Elegir calidad",
+                    stringResource(R.string.player_choose_quality),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(bottom = 4.dp),
                 )
                 if (options.size < 2) {
                     Text(
-                        "Este contenido trae una sola calidad (la que entrega tu proveedor), así que no se puede cambiar.",
+                        stringResource(R.string.player_single_quality),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    QChoice("Automática", auto, onAuto)
+                    QChoice(stringResource(R.string.player_auto), auto, onAuto)
                     options.forEach { o -> QChoice(o.label, !auto && o.selected) { onPick(o) } }
                 }
             }
@@ -227,4 +234,26 @@ private fun QChoice(label: String, selected: Boolean, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Text(label, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
+}
+
+/** Botón circular de la barra de controles del reproductor.
+ *
+ *  Los iconos se dibujan a mano (Canvas + Text), así que TalkBack no sabe qué hacen:
+ *  [desc] lleva la etiqueta de accesibilidad ("Pausar", "Retroceder 10 segundos", ...). */
+@Composable
+internal fun CtlButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    desc: String? = null,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .size(42.dp)
+            .then(if (desc != null) Modifier.semantics { contentDescription = desc } else Modifier)
+            .tvFocus(CircleShape, scale = 1f)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }

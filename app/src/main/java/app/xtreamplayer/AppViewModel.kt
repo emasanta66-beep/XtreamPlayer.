@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +39,7 @@ import app.xtreamplayer.data.XtreamApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.UUID
@@ -94,6 +96,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Películas y capítulos que ya se vieron completos (para marcarlos con ✓). */
     val watched = mutableStateListOf<String>()
 
+    /** Índice de vistos para consultar en O(1) desde cada tarjeta, sin recorrer la lista. */
+    private val watchedIndex by derivedStateOf { watched.toHashSet() }
+
     /** Avance (0..1) de una película empezada, o null. */
     fun movieProgress(id: Int): Float? {
         val key = currentAccount?.let { "${it.id}:movie:$id" } ?: return null
@@ -101,7 +106,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return if (r.durationMs > 0) (r.positionMs.toFloat() / r.durationMs).coerceIn(0f, 1f) else null
     }
 
-    fun isMovieWatched(id: Int): Boolean = currentAccount?.let { "${it.id}:movie:$id" in watched } ?: false
+    fun isMovieWatched(id: Int): Boolean = currentAccount?.let { "${it.id}:movie:$id" in watchedIndex } ?: false
+
+    /** Igual que [isMovieWatched] pero con la clave ya armada (películas y episodios). */
+    fun isEpisodeWatched(key: String?): Boolean = key != null && key in watchedIndex
 
     /** Idioma de subtítulos que se activa solo al abrir un video (null = el predeterminado). */
     var subtitleLang: String?
@@ -130,6 +138,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Descargas (películas y capítulos), compartidas por todas las listas. */
     val downloads get() = DownloadCenter.items
+
+    /** Descargas indexadas por clave, para no recorrer la cola en cada tarjeta. */
+    private val downloadIndex by derivedStateOf { downloads.associateBy { it.key } }
+
+    fun downloadFor(key: String?): DownloadItem? = key?.let { downloadIndex[it] }
 
     /** La interfaz debe pedir el permiso de notificaciones (Android 13+). */
     var askNotifPermission by mutableStateOf(false)
@@ -165,7 +178,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (pass.isEmpty()) pass = p
         }
         if (srv.isEmpty() || user.isEmpty() || pass.isEmpty()) {
-            toast("Completa servidor, usuario y contraseña")
+            toast(str(R.string.error_complete_fields))
             return
         }
         val normalized = XtreamApi.normalize(srv)
@@ -179,7 +192,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         busy = true
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { XtreamApi(acc).authenticate() }
+                withContext(Dispatchers.IO) { XtreamApi(acc, getApplication()).authenticate() }
                 val idx = accounts.indexOfFirst { it.id == acc.id }
                 // Si cambió el servidor o el usuario, lo guardado ya no corresponde a esta lista.
                 if (idx >= 0 && (accounts[idx].server != acc.server || accounts[idx].username != acc.username)) {
@@ -189,7 +202,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 storage.saveAccounts(accounts.toList())
                 onDone()
             } catch (e: Exception) {
-                toast("No se pudo conectar: ${errorText(e)}")
+                toast(str(R.string.error_connect, errorText(e)))
             }
             busy = false
         }
@@ -217,7 +230,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         busy = true
         viewModelScope.launch {
             try {
-                val a = XtreamApi(acc)
+                val a = XtreamApi(acc, getApplication())
                 if (catalog.has(acc.id)) {
                     // Ya se abrió antes: entra al instante con lo guardado y verifica la cuenta por detrás.
                     enterAccount(acc, a, null, fromLaunch)
@@ -226,7 +239,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             val info = withContext(Dispatchers.IO) { a.authenticate() }
                             if (currentAccount?.id == acc.id) authInfo = info
                         } catch (e: Exception) {
-                            toast("No se pudo verificar la lista: ${errorText(e)}")
+                            // Verificación pasiva: sin red se sigue usando la copia guardada y no se avisa.
                         }
                     }
                 } else {
@@ -234,7 +247,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     enterAccount(acc, a, info, fromLaunch)
                 }
             } catch (e: Exception) {
-                toast("No se pudo abrir la lista: ${errorText(e)}")
+                toast(str(R.string.error_open, errorText(e)))
             }
             busy = false
         }
@@ -275,7 +288,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun ensureLive(force: Boolean = false) = load(
         live, force, "live", { it.liveCategories() }, { it.liveStreams() },
-        CatalogCodec::channelFields, CatalogCodec::channelFrom, orderKey = LIVE_ORDER,
+        CatalogCodec::channelFields,
+        // El fallback (por si el caché no guarda el nombre) respeta el idioma de la app.
+        { m -> CatalogCodec.channelFrom(m) { id -> str(R.string.fallback_channel, id) } },
+        orderKey = LIVE_ORDER,
     )
 
     /** Mueve la categoría de En vivo en la posición [from] a la posición [to] y guarda el orden. */
@@ -289,12 +305,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun ensureMovies(force: Boolean = false) = load(
         movies, force, "movies", { it.vodCategories() }, { it.vodStreams() },
-        CatalogCodec::movieFields, CatalogCodec::movieFrom,
+        CatalogCodec::movieFields,
+        { m -> CatalogCodec.movieFrom(m) { id -> str(R.string.fallback_movie, id) } },
     )
 
     fun ensureSeries(force: Boolean = false) = load(
         series, force, "series", { it.seriesCategories() }, { it.seriesList() },
-        CatalogCodec::seriesFields, CatalogCodec::seriesFrom,
+        CatalogCodec::seriesFields,
+        { m -> CatalogCodec.seriesFrom(m) { id -> str(R.string.fallback_series, id) } },
     )
 
     /** Pone en la sección lo que se va a mostrar y deja elegida la primera categoría si no se eligió otra. */
@@ -351,7 +369,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 applySection(section, cats, items, accountId, orderKey)
                 withContext(Dispatchers.IO) { catalog.save(accountId, kind, cats, items, toFields) }
             } catch (e: OutOfMemoryError) {
-                if (!shown) section.error = "La lista es demasiado grande para la memoria del teléfono"
+                if (!shown) section.error = str(R.string.error_too_large)
             } catch (e: Exception) {
                 // Si ya se está mostrando la copia guardada, un fallo de red al actualizar no se muestra.
                 if (!shown) section.error = errorText(e)
@@ -371,7 +389,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     suspend fun loadSeriesInfo(id: Int): Result<SeriesDetail> {
-        val result = withContext(Dispatchers.IO) { runCatching { api!!.seriesInfo(id) } }
+        val a = api ?: return Result.failure(IOException(str(R.string.error_no_account)))
+        val result = withContext(Dispatchers.IO) { runCatching { a.seriesInfo(id) } }
         result.onSuccess { seriesCache[id] = it }
         return result
     }
@@ -386,7 +405,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------- Favoritos ----------
 
-    fun isFav(type: String, id: Int): Boolean = favs.any { it.type == type && it.id == id }
+    /** Índice "tipo:id" para consultar favoritos en O(1) desde cada tarjeta de la lista. */
+    private val favIndex by derivedStateOf {
+        favs.mapTo(HashSet(favs.size)) { "${it.type}:${it.id}" }
+    }
+
+    fun isFav(type: String, id: Int): Boolean = "$type:$id" in favIndex
 
     fun toggleFav(f: Fav) {
         val idx = favs.indexOfFirst { it.type == f.type && it.id == f.id }
@@ -542,13 +566,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (list.isEmpty()) return
         requestNotifPermissionOnce()
         list.forEach { DownloadCenter.enqueue(it) }
-        toast(if (list.size == 1) "Descargando…" else "Descargando ${list.size} capítulos")
+        toast(
+            if (list.size == 1) str(R.string.common_downloading)
+            else str(R.string.error_download_episodes, list.size),
+        )
     }
 
     private fun enqueueDownload(item: DownloadItem) {
         requestNotifPermissionOnce()
         DownloadCenter.enqueue(item)
-        toast("Descargando…")
+        toast(str(R.string.common_downloading))
     }
 
     /** Toca el botón de descarga de algo que ya está en la cola: pausa o reanuda. */
@@ -582,8 +609,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    suspend fun loadMovieInfo(id: Int): Result<MovieInfo> =
-        withContext(Dispatchers.IO) { runCatching { api!!.vodInfo(id) } }
+    suspend fun loadMovieInfo(id: Int): Result<MovieInfo> {
+        val a = api ?: return Result.failure(IOException(str(R.string.error_no_account)))
+        return withContext(Dispatchers.IO) { runCatching { a.vodInfo(id) } }
+    }
 
     fun openSeries(s: Series) {
         stack.add(Screen.SeriesPage(s))
@@ -643,12 +672,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return if (i >= 0) all.getOrNull(i + 1) else null
     }
 
-    /** Reemplaza el reproductor actual por el siguiente capítulo. */
-    fun playNextEpisode(item: PlayItem, next: Episode) {
-        val r = item.recent ?: return
+    /** Reemplaza el reproductor actual por el siguiente capítulo. Devuelve true si se pudo abrir. */
+    fun playNextEpisode(item: PlayItem, next: Episode): Boolean {
+        val r = item.recent ?: return false
         val series = Series(r.seriesId, r.title, r.image, "", null, null)
-        val screen = episodeScreen(series, next) ?: return
+        val screen = episodeScreen(series, next) ?: return false
         if (stack.lastOrNull() is Screen.Player) stack[stack.lastIndex] = screen else stack.add(screen)
+        return true
     }
 
     /** Retoma un elemento de "Continuar viendo" justo donde se dejó. */
@@ -697,7 +727,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val idx = recents.indexOfFirst { it.key == key }
         if (finished) {
             if (idx >= 0) recents.removeAt(idx)
-            if (key !in watched && watched.add(key)) currentAccount?.let { storage.saveWatched(it.id, watched.toSet()) }
+            if (key !in watchedIndex && watched.add(key)) currentAccount?.let { storage.saveWatched(it.id, watched.toSet()) }
         } else {
             if (positionMs >= 10_000 && watched.remove(key)) {
                 currentAccount?.let { storage.saveWatched(it.id, watched.toSet()) }
@@ -729,10 +759,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         server.removePrefix("http://").removePrefix("https://").substringBefore("/")
 
     private fun errorText(e: Exception): String = when (e) {
-        is UnknownHostException -> "servidor no encontrado (revisa la dirección)"
-        is SocketTimeoutException -> "tiempo de espera agotado"
+        is UnknownHostException -> str(R.string.error_host_not_found)
+        is SocketTimeoutException -> str(R.string.error_timeout)
         else -> e.message ?: e.javaClass.simpleName
     }
+
+    /** Texto de recursos con el idioma actual de la app. */
+    private fun str(id: Int, vararg args: Any): String =
+        getApplication<Application>().getString(id, *args)
 
     // ---------------------------------------------------------------- Actualizaciones
 
@@ -756,10 +790,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (info != null) {
                     update = info
                 } else if (manual) {
-                    toast("Ya tienes la última versión (${updater.currentName()})")
+                    toast(str(R.string.update_up_to_date, updater.currentName()))
                 }
             } catch (e: Exception) {
-                if (manual) toast("No se pudo buscar actualizaciones. Revisa tu conexión.")
+                if (manual) toast(str(R.string.update_check_failed))
             }
         }
     }
@@ -769,7 +803,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (updateProgress != null) return
         // Android exige que el usuario active "Instalar apps desconocidas" para esta app (una sola vez).
         if (!updater.canInstall()) {
-            toast("Activa el permiso para instalar y vuelve a tocar Actualizar")
+            toast(str(R.string.update_permission))
             updater.openInstallPermissionSettings()
             return
         }
@@ -782,7 +816,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 updater.install(file)
                 update = null
             } catch (e: Exception) {
-                toast("No se pudo descargar la actualización. Inténtalo de nuevo.")
+                toast(str(R.string.update_download_failed))
             } finally {
                 updateProgress = null
             }
