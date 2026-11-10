@@ -1058,23 +1058,6 @@ private fun CtlButton(onClick: () -> Unit, content: @Composable () -> Unit) {
 private fun showOverlayOrPlaying(inPip: Boolean, casting: Boolean, castBusy: Boolean) =
     !inPip && !casting && !castBusy
 
-private fun resolutionLabel(height: Int): String = when {
-    height >= 2000 -> "4K"
-    height >= 1400 -> "2K"
-    height >= 1000 -> "1080p"
-    height >= 700 -> "720p"
-    height >= 500 -> "576p"
-    else -> "${height}p"
-}
-
-private fun formatTime(ms: Long): String {
-    val t = (ms / 1000).coerceAtLeast(0L)
-    val h = t / 3600
-    val m = (t % 3600) / 60
-    val sec = t % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, sec) else "%d:%02d".format(m, sec)
-}
-
 private fun Context.findActivity(): Activity? {
     var c: Context = this
     while (c is ContextWrapper) {

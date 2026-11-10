@@ -3,6 +3,8 @@ name: Build APK
 on:
   push:
     branches: [main, master]
+  pull_request:
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -14,7 +16,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Pruebas unitarias de la lógica pura (sin emulador). Si fallan, no se compila ni se publica nada.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          gradle-version: 8.14.3
+          cache-provider: basic
+
+      - name: Pruebas unitarias
+        run: gradle testDebugUnitTest --no-daemon
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: test-resultados
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -112,6 +144,7 @@ jobs:
 
   attest:
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
