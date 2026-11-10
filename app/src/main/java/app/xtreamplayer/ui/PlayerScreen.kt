@@ -575,137 +575,26 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopStart),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent)))
-                    .displayCutoutPadding()
-                    .padding(horizontal = 4.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                IconButton(onClick = { vm.back() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = Color.White)
-                }
-                if (item.isLive && channels.size > 1) {
-                    Row(
-                        modifier = Modifier
-                            .padding(top = 6.dp, end = 8.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Color(0x66000000))
-                            .clickable {
-                                poke()
-                                showChannels = true
-                            }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.List,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text("Canales", color = Color.White, style = MaterialTheme.typography.labelLarge)
-                    }
-                }
-                Column(Modifier.weight(1f).padding(top = 6.dp)) {
-                    Text(
-                        item.title,
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    val now = System.currentTimeMillis()
-                    val current = epg.firstOrNull { now in it.start..it.end } ?: epg.firstOrNull()
-                    val next = current?.let { c -> epg.firstOrNull { it.start >= c.end } }
-                    if (current != null) {
-                        Text(
-                            "Ahora: ${current.title} (${timeFormat.format(current.start)}–${timeFormat.format(current.end)})",
-                            color = Color(0xCCFFFFFF),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    if (next != null) {
-                        Text(
-                            "Después: ${next.title} (${timeFormat.format(next.start)})",
-                            color = Color(0x99FFFFFF),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                if (videoH > 0) {
-                    Text(
-                        resolutionLabel(videoH),
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .padding(top = 10.dp, end = 4.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0x66000000))
-                            .clickable {
-                                poke()
-                                showQuality = true
-                            }
-                            .padding(horizontal = 8.dp, vertical = 3.dp),
-                    )
-                }
-                IconButton(onClick = {
-                    poke()
-                    showQuality = true
-                }) {
-                    Icon(Icons.Default.Info, contentDescription = "Calidad y resolución", tint = Color.White)
-                }
-                Box {
-                    IconButton(onClick = {
-                        poke()
-                        showMenu = true
-                    }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Más opciones", tint = Color.White)
-                    }
-                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        if (audioOptions.size > 1 || textOptions.isNotEmpty()) {
-                            DropdownMenuItem(
-                                text = { Text("Audio y subtítulos") },
-                                onClick = {
-                                    showMenu = false
-                                    showTracks = true
-                                },
-                            )
-                        }
-                        DropdownMenuItem(
-                            text = { Text("Calidad y resolución") },
-                            onClick = {
-                                showMenu = false
-                                showQuality = true
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Imagen: ${videoModes[videoMode].label}") },
-                            onClick = {
-                                showMenu = false
-                                vm.chooseVideoMode((videoMode + 1) % videoModes.size)
-                            },
-                        )
-                        if (!item.isLive) {
-                            DropdownMenuItem(
-                                text = { Text(if (castBusy) "Enviando…" else "Enviar a TV") },
-                                enabled = !castBusy,
-                                onClick = {
-                                    showMenu = false
-                                    showCast = true
-                                },
-                            )
-                        }
-                    }
-                }
-            }
+            PlayerTopBar(
+                title = item.title,
+                isLive = item.isLive,
+                hasChannels = channels.size > 1,
+                epg = epg,
+                timeFormat = timeFormat,
+                videoHeight = videoH,
+                videoModeLabel = videoModes[videoMode].label,
+                audioAvailable = audioOptions.size > 1 || textOptions.isNotEmpty(),
+                casting = castBusy,
+                menuOpen = showMenu,
+                onMenuOpenChange = { showMenu = it },
+                onBack = { vm.back() },
+                onChannels = { showChannels = true },
+                onQuality = { showQuality = true },
+                onTracks = { showTracks = true },
+                onCycleVideoMode = { vm.chooseVideoMode((videoMode + 1) % videoModes.size) },
+                onCast = { showCast = true },
+                onPoke = { poke() },
+            )
         }
 
         // Barra inferior: pausa, ±10 s, tiempo, volumen, subtítulos, velocidad, PiP y orientación.
@@ -715,123 +604,45 @@ fun PlayerScreen(vm: AppViewModel, item: PlayItem) {
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            val wide = LocalConfiguration.current.screenWidthDp >= 600
-            val nextEp = nextEpisode
-            val transport: @Composable () -> Unit = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (prevChannel != null) {
-                        CtlButton({
-                            poke()
-                            vm.switchChannel(prevChannel)
-                        }) { GlyphIcon(Glyph.PREV) }
-                    }
-                    CtlButton({
-                        poke()
-                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
-                    }) { GlyphIcon(if (isPlaying) Glyph.PAUSE else Glyph.PLAY, size = 30) }
-                    if (!item.isLive) {
-                        CtlButton({ seekBy(-10_000L) }) { GlyphIcon(Glyph.BACK10) }
-                        CtlButton({ seekBy(10_000L) }) { GlyphIcon(Glyph.FWD10) }
-                    }
-                    if (nextChannel != null) {
-                        CtlButton({
-                            poke()
-                            vm.switchChannel(nextChannel)
-                        }) { GlyphIcon(Glyph.NEXT) }
-                    } else if (nextEp != null) {
-                        CtlButton({
-                            poke()
-                            vm.playNextEpisode(item, nextEp)
-                        }) { GlyphIcon(Glyph.NEXT) }
-                    }
-                }
-            }
-            val seekArea: @Composable (Modifier) -> Unit = { m ->
-                if (item.isLive) {
-                    Row(m.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(9.dp).clip(CircleShape).background(Color(0xFFFF3B30)))
-                        Spacer(Modifier.width(6.dp))
-                        Text("EN VIVO", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Column(m) {
-                        val dur = durationMs.coerceAtLeast(1L).toFloat()
-                        val shown = if (seeking) seekValue else positionMs.toFloat()
-                        Slider(
-                            value = shown.coerceIn(0f, dur),
-                            onValueChange = {
-                                seeking = true
-                                seekValue = it
-                                poke()
-                            },
-                            onValueChangeFinished = {
-                                exoPlayer.seekTo(seekValue.toLong())
-                                positionMs = seekValue.toLong()
-                                seeking = false
-                            },
-                            valueRange = 0f..dur,
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color.White,
-                                activeTrackColor = Color.White,
-                                inactiveTrackColor = Color(0x55FFFFFF),
-                            ),
-                        )
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(formatTime(shown.toLong()), color = Color.White, style = MaterialTheme.typography.labelMedium)
-                            Text(formatTime(durationMs), color = Color(0xCCFFFFFF), style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
-                }
-            }
-            val tools: @Composable () -> Unit = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CtlButton({
-                        poke()
-                        muted = !muted
-                        exoPlayer.volume = if (muted) 0f else 1f
-                    }) { GlyphIcon(if (muted) Glyph.MUTE else Glyph.VOLUME) }
-                    if (audioOptions.size > 1 || textOptions.isNotEmpty()) {
-                        CtlButton({
-                            poke()
-                            showTracks = true
-                        }) { GlyphIcon(Glyph.SUBS) }
-                    }
-                    if (!item.isLive) {
-                        CtlButton({
-                            poke()
-                            speedIndex = (speedIndex + 1) % speeds.size
-                        }) {
-                            Text(speedLabels[speedIndex], color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        }
-                    }
-                    if (supportsPip) CtlButton({ enterPip() }) { GlyphIcon(Glyph.PIP) }
-                }
-            }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .displayCutoutPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Palette.Scrim)
-                    .pointerInput(Unit) { detectTapGestures { } } // los toques en la barra no la ocultan
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            ) {
-                if (wide) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        transport()
-                        seekArea(Modifier.weight(1f).padding(horizontal = 8.dp))
-                        tools()
-                    }
-                } else {
-                    seekArea(Modifier.fillMaxWidth())
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { transport() }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { tools() }
-                }
-            }
+            PlayerBottomBar(
+                isLive = item.isLive,
+                isPlaying = isPlaying,
+                hasPrevChannel = prevChannel != null,
+                hasNextChannel = nextChannel != null,
+                hasNextEpisode = nextEpisode != null,
+                hasTracks = audioOptions.size > 1 || textOptions.isNotEmpty(),
+                supportsPip = supportsPip,
+                muted = muted,
+                positionMs = positionMs,
+                durationMs = durationMs,
+                seeking = seeking,
+                seekValue = seekValue,
+                speedLabel = speedLabels[speedIndex],
+                onPrevChannel = { prevChannel?.let { vm.switchChannel(it) } },
+                onNext = {
+                    nextChannel?.let { vm.switchChannel(it) }
+                        ?: nextEpisode?.let { vm.playNextEpisode(item, it) }
+                },
+                onPlayPause = { if (isPlaying) exoPlayer.pause() else exoPlayer.play() },
+                onSeek = { seekBy(it) },
+                onSeekChange = {
+                    seeking = true
+                    seekValue = it
+                },
+                onSeekFinished = {
+                    exoPlayer.seekTo(seekValue.toLong())
+                    positionMs = seekValue.toLong()
+                    seeking = false
+                },
+                onMute = {
+                    muted = !muted
+                    exoPlayer.volume = if (muted) 0f else 1f
+                },
+                onTracks = { showTracks = true },
+                onCycleSpeed = { speedIndex = (speedIndex + 1) % speeds.size },
+                onPip = { enterPip() },
+                onPoke = { poke() },
+            )
         }
 
         if (showQuality && !inPip) {
@@ -1088,16 +899,6 @@ private fun ChannelPanel(
 
 /** Botón redondo de la barra de controles. */
 @Composable
-private fun CtlButton(onClick: () -> Unit, content: @Composable () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(42.dp)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { content() }
-}
-
 private fun showOverlayOrPlaying(inPip: Boolean, casting: Boolean, castBusy: Boolean) =
     !inPip && !casting && !castBusy
 
