@@ -32,6 +32,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,11 +54,20 @@ fun DownloadBadge(
     onToggle: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Etiqueta única para TalkBack: uno de estos títulos se lee al enfocar el botón,
+    // junto a la acción de tocar (descargar, pausar o reanudar).
+    val label = when (d?.status) {
+        null -> stringResource(R.string.common_download)
+        DlStatus.DONE -> stringResource(R.string.downloads_downloaded)
+        DlStatus.DOWNLOADING, DlStatus.QUEUED -> stringResource(R.string.downloads_pause)
+        DlStatus.PAUSED, DlStatus.ERROR -> stringResource(R.string.downloads_resume)
+    }
     Box(
         modifier = modifier
             .size(36.dp)
             .clip(CircleShape)
             .background(Palette.ScrimSoft)
+            .semantics { contentDescription = label }
             .clickable {
                 when (d?.status) {
                     null -> onStart()
@@ -70,7 +81,7 @@ fun DownloadBadge(
             null -> Text("⬇", color = Color.White, fontSize = 16.sp)
             DlStatus.DONE -> Icon(
                 Icons.Default.Check,
-                contentDescription = stringResource(R.string.downloads_downloaded),
+                contentDescription = null, // ya lo anuncia la etiqueta del contenedor
                 tint = Palette.Success,
                 modifier = Modifier.size(20.dp),
             )
@@ -97,7 +108,7 @@ fun DownloadBadge(
             )
             DlStatus.PAUSED, DlStatus.ERROR -> Icon(
                 Icons.Default.PlayArrow,
-                contentDescription = stringResource(R.string.downloads_resume),
+                contentDescription = null, // ya lo anuncia la etiqueta del contenedor
                 tint = if (d.status == DlStatus.ERROR) Palette.Error else Color.White,
                 modifier = Modifier.size(22.dp),
             )

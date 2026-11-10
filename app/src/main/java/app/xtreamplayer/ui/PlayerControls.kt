@@ -34,6 +34,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -234,16 +236,21 @@ private fun QChoice(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Botón circular de la barra de controles del reproductor. */
+/** Botón circular de la barra de controles del reproductor.
+ *
+ *  Los iconos se dibujan a mano (Canvas + Text), así que TalkBack no sabe qué hacen:
+ *  [desc] lleva la etiqueta de accesibilidad ("Pausar", "Retroceder 10 segundos", ...). */
 @Composable
 internal fun CtlButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    desc: String? = null,
     content: @Composable () -> Unit,
 ) {
     Box(
         modifier = modifier
             .size(42.dp)
+            .then(if (desc != null) Modifier.semantics { contentDescription = desc } else Modifier)
             .tvFocus(CircleShape, scale = 1f)
             .clip(CircleShape)
             .clickable(onClick = onClick),

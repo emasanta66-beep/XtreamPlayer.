@@ -139,6 +139,20 @@
     <string name="player_image_width">Al ancho</string>
     <string name="player_image_height">Al alto</string>
 
+    <!-- Descripciones de botones del reproductor (leídas por TalkBack, no se muestran en pantalla) -->
+    <string name="player_pause">Pausar</string>
+    <string name="player_play">Reproducir</string>
+    <string name="player_back10">Retroceder 10 segundos</string>
+    <string name="player_fwd10">Avanzar 10 segundos</string>
+    <string name="player_prev">Anterior</string>
+    <string name="player_next">Siguiente</string>
+    <string name="player_mute">Silenciar</string>
+    <string name="player_unmute">Activar sonido</string>
+    <string name="player_speed">Velocidad</string>
+    <string name="player_pip">Pantalla en pantalla</string>
+    <string name="player_progress_label">Posición del video</string>
+    <string name="downloads_pause">Pausar descarga</string>
+
     <!-- Pistas -->
     <string name="track_audio">Audio %1$d</string>
     <string name="track_subtitle">Subtítulo %1$d</string>

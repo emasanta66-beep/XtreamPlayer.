@@ -282,7 +282,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun ensureLive(force: Boolean = false) = load(
         live, force, "live", { it.liveCategories() }, { it.liveStreams() },
-        CatalogCodec::channelFields, CatalogCodec::channelFrom, orderKey = LIVE_ORDER,
+        CatalogCodec::channelFields,
+        // El fallback (por si el caché no guarda el nombre) respeta el idioma de la app.
+        { m -> CatalogCodec.channelFrom(m) { id -> str(R.string.fallback_channel, id) } },
+        orderKey = LIVE_ORDER,
     )
 
     /** Mueve la categoría de En vivo en la posición [from] a la posición [to] y guarda el orden. */
@@ -296,12 +299,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun ensureMovies(force: Boolean = false) = load(
         movies, force, "movies", { it.vodCategories() }, { it.vodStreams() },
-        CatalogCodec::movieFields, CatalogCodec::movieFrom,
+        CatalogCodec::movieFields,
+        { m -> CatalogCodec.movieFrom(m) { id -> str(R.string.fallback_movie, id) } },
     )
 
     fun ensureSeries(force: Boolean = false) = load(
         series, force, "series", { it.seriesCategories() }, { it.seriesList() },
-        CatalogCodec::seriesFields, CatalogCodec::seriesFrom,
+        CatalogCodec::seriesFields,
+        { m -> CatalogCodec.seriesFrom(m) { id -> str(R.string.fallback_series, id) } },
     )
 
     /** Pone en la sección lo que se va a mostrar y deja elegida la primera categoría si no se eligió otra. */

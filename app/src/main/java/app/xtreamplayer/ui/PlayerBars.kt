@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -271,30 +273,48 @@ internal fun PlayerBottomBar(
 ) {
     val wide = LocalConfiguration.current.screenWidthDp >= 600
 
+    // Etiquetas para TalkBack de todos los botones dibujados a mano (no llevan texto).
+    val prevDesc = stringResource(R.string.player_prev)
+    val playDesc = stringResource(if (isPlaying) R.string.player_pause else R.string.player_play)
+    val back10Desc = stringResource(R.string.player_back10)
+    val fwd10Desc = stringResource(R.string.player_fwd10)
+    val nextDesc = stringResource(R.string.player_next)
+    val muteDesc = stringResource(if (muted) R.string.player_unmute else R.string.player_mute)
+    val tracksDesc = stringResource(R.string.player_audio_subs)
+    val speedDesc = stringResource(R.string.player_speed)
+    val pipDesc = stringResource(R.string.player_pip)
+
     val transport: @Composable () -> Unit = {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (hasPrevChannel) {
-                CtlButton({
-                    onPoke()
-                    onPrevChannel()
-                }) { GlyphIcon(Glyph.PREV) }
+                CtlButton(
+                    onClick = {
+                        onPoke()
+                        onPrevChannel()
+                    },
+                    desc = prevDesc,
+                ) { GlyphIcon(Glyph.PREV) }
             }
             CtlButton(
                 onClick = {
                     onPoke()
                     onPlayPause()
                 },
+                desc = playDesc,
                 modifier = if (playPauseFocus != null) Modifier.focusRequester(playPauseFocus) else Modifier,
             ) { GlyphIcon(if (isPlaying) Glyph.PAUSE else Glyph.PLAY, size = 30) }
             if (!isLive) {
-                CtlButton({ onSeek(-10_000L) }) { GlyphIcon(Glyph.BACK10) }
-                CtlButton({ onSeek(10_000L) }) { GlyphIcon(Glyph.FWD10) }
+                CtlButton({ onSeek(-10_000L) }, desc = back10Desc) { GlyphIcon(Glyph.BACK10) }
+                CtlButton({ onSeek(10_000L) }, desc = fwd10Desc) { GlyphIcon(Glyph.FWD10) }
             }
             if (hasNextChannel || hasNextEpisode) {
-                CtlButton({
-                    onPoke()
-                    onNext()
-                }) { GlyphIcon(Glyph.NEXT) }
+                CtlButton(
+                    onClick = {
+                        onPoke()
+                        onNext()
+                    },
+                    desc = nextDesc,
+                ) { GlyphIcon(Glyph.NEXT) }
             }
         }
     }
@@ -310,6 +330,7 @@ internal fun PlayerBottomBar(
             Column(m) {
                 val dur = durationMs.coerceAtLeast(1L).toFloat()
                 val shown = if (seeking) seekValue else positionMs.toFloat()
+                val progressDesc = stringResource(R.string.player_progress_label)
                 Slider(
                     value = shown.coerceIn(0f, dur),
                     onValueChange = {
@@ -323,6 +344,7 @@ internal fun PlayerBottomBar(
                         activeTrackColor = Color.White,
                         inactiveTrackColor = Color(0x55FFFFFF),
                     ),
+                    modifier = Modifier.semantics { contentDescription = progressDesc },
                 )
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 4.dp),
@@ -340,22 +362,22 @@ internal fun PlayerBottomBar(
             CtlButton({
                 onPoke()
                 onMute()
-            }) { GlyphIcon(if (muted) Glyph.MUTE else Glyph.VOLUME) }
+            }, desc = muteDesc) { GlyphIcon(if (muted) Glyph.MUTE else Glyph.VOLUME) }
             if (hasTracks) {
                 CtlButton({
                     onPoke()
                     onTracks()
-                }) { GlyphIcon(Glyph.SUBS) }
+                }, desc = tracksDesc) { GlyphIcon(Glyph.SUBS) }
             }
             if (!isLive) {
                 CtlButton({
                     onPoke()
                     onCycleSpeed()
-                }) {
+                }, desc = speedDesc) {
                     Text(speedLabel, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
-            if (supportsPip) CtlButton({ onPip() }) { GlyphIcon(Glyph.PIP) }
+            if (supportsPip) CtlButton({ onPip() }, desc = pipDesc) { GlyphIcon(Glyph.PIP) }
         }
     }
 

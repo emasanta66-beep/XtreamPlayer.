@@ -3,6 +3,7 @@ package app.xtreamplayer
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -27,6 +28,7 @@ class DownloadService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        ensureChannel()
         val first = buildNotification()
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(NOTIF_ID, first, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
@@ -52,21 +54,32 @@ class DownloadService : Service() {
         super.onDestroy()
     }
 
-    private fun buildNotification(): Notification {
+    private fun ensureChannel() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= 26) {
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL, getString(R.string.downloads_channel), NotificationManager.IMPORTANCE_LOW)
-            )
-        }
+        // crearNotificationChannel es idempotente; lo llamamos una vez por arranque del servicio
+        // en lugar de repetirlo cada segundo dentro del bucle de la notificación.
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL, getString(R.string.downloads_channel), NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun buildNotification(): Notification {
         val items = DownloadCenter.items
         val active = items.firstOrNull { it.status == DlStatus.DOWNLOADING }
         val pending = items.count { it.status == DlStatus.QUEUED || it.status == DlStatus.DOWNLOADING }
         val title = active?.let {
             if (it.subtitle.isEmpty()) it.title else "${it.title} · ${it.subtitle}"
         } ?: getString(R.string.downloads_channel)
-        val b = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else Notification.Builder(this)
-        b.setSmallIcon(android.R.drawable.stat_sys_download)
+        // Tocar la notificación lleva a la pantalla principal (la app ya está viva descargando).
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            0,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val b = Notification.Builder(this, CHANNEL)
+        b.setSmallIcon(R.drawable.ic_stat_download)
+            .setContentIntent(contentIntent)
             .setContentTitle(title)
             .setContentText(
                 if (pending > 1) getString(R.string.downloads_notification_queued, pending)

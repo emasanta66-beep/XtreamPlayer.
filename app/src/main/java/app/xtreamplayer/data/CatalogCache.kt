@@ -121,14 +121,18 @@ class CatalogCache(context: Context) {
     }
 }
 
-/** Cómo se guarda y se reconstruye cada tipo de elemento. */
+/** Cómo se guarda y se reconstruye cada tipo de elemento.
+ *
+ *  Las funciones [channelFrom], [movieFrom] y [seriesFrom] reciben [fallback] para inventar
+ *  un nombre cuando el caché no trae el campo "name"; se inyecta desde la interfaz
+ *  (AppViewModel) para respetar el idioma elegido, porque aquí no llega un Context. */
 object CatalogCodec {
     fun channelFields(c: Channel): List<Pair<String, String?>> =
         listOf("id" to c.id.toString(), "name" to c.name, "icon" to c.icon, "cat" to c.categoryId)
 
-    fun channelFrom(m: Map<String, String>): Channel? {
+    fun channelFrom(m: Map<String, String>, fallback: (Int) -> String): Channel? {
         val id = m["id"]?.toIntOrNull() ?: return null
-        return Channel(id, m["name"] ?: "Canal $id", m["icon"], m["cat"] ?: "")
+        return Channel(id, m["name"] ?: fallback(id), m["icon"], m["cat"] ?: "")
     }
 
     fun movieFields(x: Movie): List<Pair<String, String?>> = listOf(
@@ -136,11 +140,11 @@ object CatalogCodec {
         "rating" to x.rating, "plot" to x.plot, "added" to x.added.toString(),
     )
 
-    fun movieFrom(m: Map<String, String>): Movie? {
+    fun movieFrom(m: Map<String, String>, fallback: (Int) -> String): Movie? {
         val id = m["id"]?.toIntOrNull() ?: return null
         return Movie(
             id = id,
-            name = m["name"] ?: "Película $id",
+            name = m["name"] ?: fallback(id),
             icon = m["icon"],
             categoryId = m["cat"] ?: "",
             ext = m["ext"] ?: "mp4",
@@ -155,11 +159,11 @@ object CatalogCodec {
         "plot" to x.plot, "rating" to x.rating, "added" to x.added.toString(),
     )
 
-    fun seriesFrom(m: Map<String, String>): Series? {
+    fun seriesFrom(m: Map<String, String>, fallback: (Int) -> String): Series? {
         val id = m["id"]?.toIntOrNull() ?: return null
         return Series(
             id = id,
-            name = m["name"] ?: "Serie $id",
+            name = m["name"] ?: fallback(id),
             cover = m["cover"],
             categoryId = m["cat"] ?: "",
             plot = m["plot"],
