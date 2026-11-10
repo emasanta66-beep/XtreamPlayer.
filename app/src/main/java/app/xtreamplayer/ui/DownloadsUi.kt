@@ -54,7 +54,7 @@ fun DownloadBadge(
         modifier = modifier
             .size(36.dp)
             .clip(CircleShape)
-            .background(Color(0x99000000))
+            .background(Palette.ScrimSoft)
             .clickable {
                 when (d?.status) {
                     null -> onStart()
@@ -69,7 +69,7 @@ fun DownloadBadge(
             DlStatus.DONE -> Icon(
                 Icons.Default.Check,
                 contentDescription = "Descargado",
-                tint = Color(0xFF4CAF50),
+                tint = Palette.Success,
                 modifier = Modifier.size(20.dp),
             )
             DlStatus.DOWNLOADING -> {
@@ -96,7 +96,7 @@ fun DownloadBadge(
             DlStatus.PAUSED, DlStatus.ERROR -> Icon(
                 Icons.Default.PlayArrow,
                 contentDescription = "Reanudar descarga",
-                tint = if (d.status == DlStatus.ERROR) Color(0xFFFF8A80) else Color.White,
+                tint = if (d.status == DlStatus.ERROR) Palette.Error else Color.White,
                 modifier = Modifier.size(22.dp),
             )
         }
