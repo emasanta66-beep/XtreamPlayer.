@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.xtreamplayer.AppViewModel
 import app.xtreamplayer.data.Account
+import app.xtreamplayer.data.XtreamApi
 
 @Composable
 fun AccountsScreen(vm: AppViewModel) {
@@ -205,7 +206,18 @@ private fun AccountDialog(
                 )
                 OutlinedTextField(
                     value = server,
-                    onValueChange = { server = it },
+                    onValueChange = { raw ->
+                        // Si pegan la URL completa de la lista (get.php?username=…&password=…),
+                        // se rellena el servidor limpio y el usuario/contraseña solos.
+                        val parsed = XtreamApi.parseListUrl(raw)
+                        if (parsed != null) {
+                            server = parsed.first
+                            user = parsed.second
+                            pass = parsed.third
+                        } else {
+                            server = raw
+                        }
+                    },
                     label = { Text("Servidor o URL de la lista") },
                     placeholder = { Text("http://servidor.com:8080") },
                     singleLine = true,
