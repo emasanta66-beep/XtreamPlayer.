@@ -118,7 +118,7 @@ fun MovieScreen(vm: AppViewModel, movie: Movie) {
                 ) {
                     AsyncImage(
                         model = movie.icon,
-                        contentDescription = movie.name,
+                        contentDescription = null, // el título lo anuncia el Text de al lado
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),
                     )
