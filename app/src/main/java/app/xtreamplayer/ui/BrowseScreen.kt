@@ -82,6 +82,7 @@ import app.xtreamplayer.Section
 import app.xtreamplayer.data.Category
 import app.xtreamplayer.data.Channel
 import app.xtreamplayer.data.Fav
+import app.xtreamplayer.data.Movie
 import app.xtreamplayer.data.Recent
 import app.xtreamplayer.data.Series
 import coil.compose.AsyncImage
@@ -219,7 +220,7 @@ fun BrowseScreen(vm: AppViewModel) {
     ) { pad ->
         val modifier = Modifier.padding(pad).fillMaxSize()
         when (tab) {
-            TAB_HOME -> HomeTab(vm, onContinue = { tab = TAB_CONTINUE }, onMovies = { tab = TAB_MOVIES }, onLive = { tab = TAB_LIVE }, modifier = modifier)
+            TAB_HOME -> HomeTab(vm, onContinue = { tab = TAB_CONTINUE }, onMovies = { tab = TAB_MOVIES }, onLive = { tab = TAB_LIVE }, onSeries = { tab = TAB_SERIES }, modifier = modifier)
             TAB_LIVE -> LiveTab(vm, query, modifier)
             TAB_MOVIES -> MoviesTab(vm, query, modifier)
             TAB_SERIES -> SeriesTab(vm, query, modifier)
@@ -371,7 +372,7 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
                             watched = vm.isMovieWatched(m.id),
                             modifier = Modifier.fillMaxWidth(),
                             fav = vm.isFav("movie", m.id),
-                            onClick = { vm.playMovie(m.id, m.name, m.ext, m.icon) },
+                            onClick = { vm.openMovie(m) },
                             onFav = { vm.toggleFav(Fav("movie", m.id, m.name, m.icon, m.ext)) },
                             download = {
                                 val key = vm.currentAccount?.let { "${it.id}:movie:${m.id}" }
@@ -463,7 +464,7 @@ private fun FavTab(vm: AppViewModel, query: String, modifier: Modifier) {
                     onClick = {
                         when (f.type) {
                             "live" -> vm.playChannel(Channel(f.id, f.name, f.icon, ""))
-                            "movie" -> vm.playMovie(f.id, f.name, f.ext, f.icon)
+                            "movie" -> vm.openMovie(Movie(f.id, f.name, f.icon, "", f.ext.ifEmpty { "mp4" }, null))
                             else -> vm.openSeries(Series(f.id, f.name, f.icon, "", null, null))
                         }
                     },

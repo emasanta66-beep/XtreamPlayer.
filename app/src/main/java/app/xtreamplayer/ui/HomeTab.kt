@@ -29,6 +29,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,7 +41,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.xtreamplayer.AppViewModel
+import app.xtreamplayer.data.Movie
 import app.xtreamplayer.data.Recent
+import app.xtreamplayer.data.Series
 import coil.compose.AsyncImage
 
 @Composable
@@ -48,9 +52,21 @@ fun HomeTab(
     onContinue: () -> Unit,
     onMovies: () -> Unit,
     onLive: () -> Unit,
+    onSeries: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val recent = vm.recents.firstOrNull()
+    // Las "recién agregadas" salen de las listas completas (categoría "Todos"), así que se cargan aquí.
+    LaunchedEffect(Unit) {
+        vm.ensureMovies()
+        vm.ensureSeries()
+    }
+    val newMovies = remember(vm.movies.items) {
+        vm.movies.items.sortedWith(compareByDescending<Movie> { it.added }.thenByDescending { it.id }).take(20)
+    }
+    val newSeries = remember(vm.series.items) {
+        vm.series.items.sortedWith(compareByDescending<Series> { it.added }.thenByDescending { it.id }).take(20)
+    }
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 24.dp),
@@ -115,15 +131,6 @@ fun HomeTab(
                 }
             }
         }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Explorar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    HomeShortcut("Películas", Icons.AutoMirrored.Filled.List, onMovies, Modifier.weight(1f))
-                    HomeShortcut("En vivo", Icons.Default.PlayArrow, onLive, Modifier.weight(1f))
-                }
-            }
-        }
         if (vm.recents.isNotEmpty()) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -142,25 +149,50 @@ fun HomeTab(
                 }
             }
         }
+        if (newMovies.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ShelfHeader("Películas recién agregadas", onMovies)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(newMovies, key = { it.id }) { m ->
+                            ShelfCard(m.name, m.icon, onClick = { vm.openMovie(m) })
+                        }
+                    }
+                }
+            }
+        }
+        if (newSeries.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ShelfHeader("Series recién agregadas", onSeries)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(newSeries, key = { it.id }) { sr ->
+                            ShelfCard(sr.name, sr.cover, onClick = { vm.openSeries(sr) })
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun HomeShortcut(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Card(
-        onClick = onClick,
-        modifier = modifier.height(96.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-    ) {
-        Row(
-            Modifier.fillMaxSize().padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+private fun ShelfHeader(title: String, onSeeAll: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onSeeAll), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text("Ver todo", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+@Composable
+private fun ShelfCard(title: String, image: String?, onClick: () -> Unit) {
+    Column(Modifier.width(148.dp).clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Box(Modifier.fillMaxWidth().height(218.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surfaceContainer)) {
+            if (!image.isNullOrBlank()) {
+                AsyncImage(image, contentDescription = title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            }
         }
+        Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 

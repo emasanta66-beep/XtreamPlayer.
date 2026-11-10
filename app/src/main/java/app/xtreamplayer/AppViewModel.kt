@@ -21,6 +21,7 @@ import app.xtreamplayer.data.DlStatus
 import app.xtreamplayer.data.DownloadCenter
 import app.xtreamplayer.data.DownloadItem
 import app.xtreamplayer.data.Episode
+import app.xtreamplayer.data.MovieInfo
 import app.xtreamplayer.data.EpgItem
 import app.xtreamplayer.data.Fav
 import app.xtreamplayer.data.Movie
@@ -48,6 +49,10 @@ sealed interface Screen {
 
     data class Browse(val accountId: String) : Screen {
         override val key: String get() = "browse_$accountId"
+    }
+
+    data class MoviePage(val movie: Movie) : Screen {
+        override val key: String get() = "movie_${movie.id}"
     }
 
     data class SeriesPage(val series: Series) : Screen {
@@ -513,6 +518,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             )
         )
     }
+
+    /** Abre la ficha de la película; si ya la venías viendo, la reproduce directamente desde donde quedaste. */
+    fun openMovie(m: Movie) {
+        if (movieProgress(m.id) != null) {
+            playMovie(m.id, m.name, m.ext, m.icon)
+        } else {
+            stack.add(Screen.MoviePage(m))
+        }
+    }
+
+    suspend fun loadMovieInfo(id: Int): Result<MovieInfo> =
+        withContext(Dispatchers.IO) { runCatching { api!!.vodInfo(id) } }
 
     fun openSeries(s: Series) {
         stack.add(Screen.SeriesPage(s))

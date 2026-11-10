@@ -25,6 +25,8 @@ data class Movie(
     val ext: String,
     val rating: String?,
     val plot: String? = null,
+    /** Fecha en que se agregó al catálogo (segundos desde 1970); 0 si el proveedor no la entrega. */
+    val added: Long = 0L,
 )
 
 data class Series(
@@ -34,7 +36,11 @@ data class Series(
     val categoryId: String,
     val plot: String?,
     val rating: String?,
+    val added: Long = 0L,
 )
+
+/** Datos extra de una película (los pide la pantalla de detalle). */
+data class MovieInfo(val plot: String?, val genre: String?, val duration: String?)
 
 data class Episode(
     val id: String,

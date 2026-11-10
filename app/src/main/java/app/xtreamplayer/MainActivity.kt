@@ -21,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import app.xtreamplayer.ui.AccountsScreen
 import app.xtreamplayer.ui.AppTheme
 import app.xtreamplayer.ui.BrowseScreen
+import app.xtreamplayer.ui.MovieScreen
 import app.xtreamplayer.ui.PlayerScreen
 import app.xtreamplayer.ui.SeriesScreen
 import app.xtreamplayer.ui.UpdateDialog
@@ -80,6 +81,7 @@ private fun Root(vm: AppViewModel) {
         when (screen) {
             is Screen.Accounts -> AccountsScreen(vm)
             is Screen.Browse -> BrowseScreen(vm)
+            is Screen.MoviePage -> MovieScreen(vm, screen.movie)
             is Screen.SeriesPage -> SeriesScreen(vm, screen.series)
             is Screen.Player -> PlayerScreen(vm, screen.item)
         }

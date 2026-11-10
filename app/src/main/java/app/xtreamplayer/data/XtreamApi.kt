@@ -101,7 +101,7 @@ class XtreamApi(private val acc: Account) {
     fun vodStreams(): List<Movie> =
         streamList(
             "get_vod_streams",
-            setOf("stream_id", "name", "stream_icon", "category_id", "container_extension", "rating", "plot"),
+            setOf("stream_id", "name", "stream_icon", "category_id", "container_extension", "rating", "plot", "added"),
         ) { f ->
             val id = f.intOf("stream_id") ?: return@streamList null
             Movie(
@@ -112,11 +112,21 @@ class XtreamApi(private val acc: Account) {
                 ext = f["container_extension"] ?: "mp4",
                 rating = f["rating"],
                 plot = f["plot"]?.take(PLOT_PREVIEW_CHARS),
+                added = f["added"]?.toLongOrNull() ?: 0L,
             )
         }
 
+    fun vodInfo(id: Int): MovieInfo {
+        val info = JSONObject(get(url("get_vod_info", "vod_id" to id.toString()))).optJSONObject("info")
+        return MovieInfo(
+            plot = info?.str("plot") ?: info?.str("description"),
+            genre = info?.str("genre"),
+            duration = info?.str("duration"),
+        )
+    }
+
     fun seriesList(): List<Series> =
-        streamList("get_series", setOf("series_id", "name", "cover", "category_id", "plot", "rating")) { f ->
+        streamList("get_series", setOf("series_id", "name", "cover", "category_id", "plot", "rating", "last_modified")) { f ->
             val id = f.intOf("series_id") ?: return@streamList null
             Series(
                 id = id,
@@ -126,6 +136,7 @@ class XtreamApi(private val acc: Account) {
                 // La sinopsis completa se pide al abrir la serie; aquí basta un resumen (ahorra mucha memoria).
                 plot = f["plot"]?.take(PLOT_PREVIEW_CHARS),
                 rating = f["rating"],
+                added = f["last_modified"]?.toLongOrNull() ?: 0L,
             )
         }
 
