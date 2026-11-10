@@ -74,6 +74,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -348,6 +349,8 @@ private fun MoviesTab(vm: AppViewModel, query: String, modifier: Modifier) {
         } else {
             val categoryNames = remember(s.cats) { s.cats.associate { it.id to it.name } }
             val shelves = remember(list) { list.groupBy { it.categoryId } }
+            val ctx = LocalContext.current
+            LaunchedEffect(list) { prefetchImages(ctx, list.take(60).map { it.icon }) }
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(104.dp),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 22.dp),
@@ -406,6 +409,8 @@ private fun SeriesTab(vm: AppViewModel, query: String, modifier: Modifier) {
         } else {
             val categoryNames = remember(s.cats) { s.cats.associate { it.id to it.name } }
             val shelves = remember(list) { list.groupBy { it.categoryId } }
+            val ctx = LocalContext.current
+            LaunchedEffect(list) { prefetchImages(ctx, list.take(60).map { it.cover }) }
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(104.dp),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 22.dp),

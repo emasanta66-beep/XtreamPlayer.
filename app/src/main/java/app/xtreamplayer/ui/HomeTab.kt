@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -61,11 +62,18 @@ fun HomeTab(
         vm.ensureMovies()
         vm.ensureSeries()
     }
+    val context = LocalContext.current
     val newMovies = remember(vm.movies.items) {
         vm.movies.items.sortedWith(compareByDescending<Movie> { it.added }.thenByDescending { it.id }).take(20)
     }
     val newSeries = remember(vm.series.items) {
         vm.series.items.sortedWith(compareByDescending<Series> { it.added }.thenByDescending { it.id }).take(20)
+    }
+    LaunchedEffect(newMovies, newSeries, vm.recents.size) {
+        prefetchImages(
+            context,
+            vm.recents.take(10).map { it.image } + newMovies.map { it.icon } + newSeries.map { it.cover },
+        )
     }
     LazyColumn(
         modifier = modifier,
